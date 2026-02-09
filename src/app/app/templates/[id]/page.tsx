@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -13,14 +13,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 
 type Exercise = { id: string; name: string; category: string };
@@ -49,7 +41,7 @@ export default function TemplateBuilderPage() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
-  const [selectedEx, setSelectedEx] = useState("");
+  const [exSearch, setExSearch] = useState("");
   const [startSessionLoading, setStartSessionLoading] = useState(false);
 
   async function fetchTemplate() {
@@ -73,17 +65,16 @@ export default function TemplateBuilderPage() {
     fetchExercises();
   }, [id]);
 
-  async function addExercise() {
-    if (!selectedEx || !template) return;
+  async function addExercise(exerciseId: string) {
+    if (!exerciseId || !template) return;
     const order = template.exercises.length;
     const res = await fetch(`/api/templates/${id}/exercises`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ exerciseId: selectedEx, order }),
+      body: JSON.stringify({ exerciseId, order }),
     });
     if (res.ok) {
-      setOpen(false);
-      setSelectedEx("");
+      setExSearch("");
       fetchTemplate();
     }
   }
@@ -149,27 +140,47 @@ export default function TemplateBuilderPage() {
             <DialogHeader>
               <DialogTitle>Add exercise to template</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Exercise</Label>
-                <Select value={selectedEx} onValueChange={setSelectedEx}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose exercise" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {exercises
-                      .filter((e) => !usedIds.has(e.id))
-                      .map((e) => (
-                        <SelectItem key={e.id} value={e.id}>
-                          {e.name} ({e.category})
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button onClick={addExercise} disabled={!selectedEx}>
-                Add
-              </Button>
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-on-surface-variant" />
+              <Input
+                placeholder="Search exercises..."
+                value={exSearch}
+                onChange={(e) => setExSearch(e.target.value)}
+                className="pl-10"
+                autoFocus
+              />
+            </div>
+            <div className="max-h-[50vh] overflow-y-auto -mx-2 px-2 space-y-1">
+              {exercises
+                .filter((e) => !usedIds.has(e.id))
+                .filter((e) =>
+                  exSearch
+                    ? e.name.toLowerCase().includes(exSearch.toLowerCase()) ||
+                      e.category.toLowerCase().includes(exSearch.toLowerCase())
+                    : true
+                )
+                .map((e) => (
+                  <button
+                    key={e.id}
+                    type="button"
+                    className="flex w-full items-center justify-between rounded-lg px-3 py-3 text-left hover:bg-primary/[0.08] active:bg-primary/[0.12] transition-colors min-h-[48px]"
+                    onClick={() => addExercise(e.id)}
+                  >
+                    <div>
+                      <span className="font-medium text-on-surface">{e.name}</span>
+                      <span className="ml-2 text-xs text-on-surface-variant">{e.category}</span>
+                    </div>
+                    <Plus className="h-4 w-4 text-primary shrink-0" />
+                  </button>
+                ))}
+              {exercises.filter((e) => !usedIds.has(e.id)).filter((e) =>
+                exSearch
+                  ? e.name.toLowerCase().includes(exSearch.toLowerCase()) ||
+                    e.category.toLowerCase().includes(exSearch.toLowerCase())
+                  : true
+              ).length === 0 && (
+                <p className="py-8 text-center text-on-surface-variant text-sm">No matching exercises</p>
+              )}
             </div>
           </DialogContent>
         </Dialog>
