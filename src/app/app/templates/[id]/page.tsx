@@ -88,6 +88,12 @@ export default function TemplateBuilderPage() {
     if (res.ok) fetchTemplate();
   }
 
+  async function deleteTemplate() {
+    if (!confirm("Delete this template and all its exercises?")) return;
+    const res = await fetch(`/api/templates/${id}`, { method: "DELETE" });
+    if (res.ok) router.push("/app/templates");
+  }
+
   async function startSession() {
     setStartSessionLoading(true);
     const today = new Date().toISOString().slice(0, 10);
@@ -116,16 +122,21 @@ export default function TemplateBuilderPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link href="/app/templates">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold">{template.title}</h1>
-          <p className="text-on-surface-variant">{template.category}</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Link href="/app/templates">
+            <Button variant="ghost" size="icon">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold">{template.title}</h1>
+            <p className="text-on-surface-variant">{template.category}</p>
+          </div>
         </div>
+        <Button variant="ghost" size="icon" onClick={deleteTemplate}>
+          <Trash2 className="h-4 w-4 text-error" />
+        </Button>
       </div>
 
       <div className="flex gap-4">

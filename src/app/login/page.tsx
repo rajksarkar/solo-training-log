@@ -19,6 +19,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/app";
+  const resetSuccess = searchParams.get("reset") === "1";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +60,11 @@ function LoginForm() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {resetSuccess && (
+              <p className="text-sm text-primary bg-primary/[0.08] p-3 rounded-md">
+                Password reset successfully. Log in with your new password.
+              </p>
+            )}
             {error && (
               <p className="text-sm text-on-error-container bg-error-container p-3 rounded-md">
                 {error}
@@ -76,7 +82,15 @@ function LoginForm() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <Link
+                  href="/forgot-password"
+                  className="text-xs text-primary hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              </div>
               <Input
                 id="password"
                 type="password"

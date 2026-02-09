@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FAB } from "@/components/ui/fab";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,6 +49,12 @@ export default function TemplatesPage() {
   useEffect(() => {
     fetchTemplates();
   }, []);
+
+  async function handleDelete(id: string) {
+    if (!confirm("Delete this template?")) return;
+    const res = await fetch(`/api/templates/${id}`, { method: "DELETE" });
+    if (res.ok) fetchTemplates();
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -140,8 +146,23 @@ export default function TemplatesPage() {
             <Link key={t.id} href={`/app/templates/${t.id}`}>
               <Card className="hover:bg-primary/[0.08] transition-colors cursor-pointer">
                 <CardHeader>
-                  <CardTitle className="text-base">{t.title}</CardTitle>
-                  <p className="text-sm text-on-surface-variant">{t.category}</p>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <CardTitle className="text-base">{t.title}</CardTitle>
+                      <p className="text-sm text-on-surface-variant">{t.category}</p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleDelete(t.id);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 text-error" />
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-on-surface-variant">

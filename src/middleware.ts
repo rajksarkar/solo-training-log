@@ -11,7 +11,9 @@ export async function middleware(request: NextRequest) {
   const isAppRoute = request.nextUrl.pathname.startsWith("/app");
   const isAuthRoute =
     request.nextUrl.pathname.startsWith("/login") ||
-    request.nextUrl.pathname.startsWith("/signup");
+    request.nextUrl.pathname.startsWith("/signup") ||
+    request.nextUrl.pathname.startsWith("/forgot-password") ||
+    request.nextUrl.pathname.startsWith("/reset-password");
 
   if (isAppRoute && !isLoggedIn) {
     return NextResponse.redirect(new URL("/login", request.url));
@@ -23,5 +25,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/app/:path*", "/login", "/signup"],
+  matcher: ["/app/:path*", "/login", "/signup", "/forgot-password", "/reset-password/:path*"],
 };

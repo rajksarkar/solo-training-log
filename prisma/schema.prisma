@@ -25,11 +25,13 @@ enum WeightUnit {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  passwordHash String?   @map("password_hash")
-  name         String?
-  createdAt    DateTime  @default(now()) @map("created_at")
+  id               String    @id @default(cuid())
+  email            String    @unique
+  passwordHash     String?   @map("password_hash")
+  name             String?
+  resetToken       String?   @unique @map("reset_token")
+  resetTokenExpiry DateTime? @map("reset_token_expiry")
+  createdAt        DateTime  @default(now()) @map("created_at")
 
   exercises        Exercise[]
   sessionTemplates SessionTemplate[]

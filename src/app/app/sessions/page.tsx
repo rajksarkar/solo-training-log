@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { CATEGORIES } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -73,6 +73,12 @@ export default function SessionsPage() {
       setLoading(false)
     );
   }, []);
+
+  async function handleDelete(sessionId: string) {
+    if (!confirm("Delete this session?")) return;
+    const res = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
+    if (res.ok) fetchSessions();
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -227,7 +233,19 @@ export default function SessionsPage() {
                       {new Date(s.date).toLocaleDateString()} · {s.category}
                     </p>
                   </div>
-                  <span className="text-primary text-sm">View →</span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleDelete(s.id);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 text-error" />
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             </Link>

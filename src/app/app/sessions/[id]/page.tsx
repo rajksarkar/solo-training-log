@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Plus, Save, Check, Play } from "lucide-react";
+import { ArrowLeft, Plus, Save, Check, Play, Trash2 } from "lucide-react";
 import { ExerciseDetailDialog } from "@/components/exercise-detail-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -175,6 +175,12 @@ export default function SessionLogPage() {
     return ["cardio", "zone2", "pilates", "stretching"].includes(cat);
   }
 
+  async function deleteSession() {
+    if (!confirm("Delete this session and all logged sets?")) return;
+    const res = await fetch(`/api/sessions/${id}`, { method: "DELETE" });
+    if (res.ok) router.push("/app/sessions");
+  }
+
   async function addExercise() {
     if (!selectedEx || !session) return;
     const order = session.exercises.length;
@@ -277,6 +283,9 @@ export default function SessionLogPage() {
           <Button onClick={saveLogs} disabled={saving}>
             <Save className="h-4 w-4 mr-2" />
             {saving ? "Saving..." : "Save"}
+          </Button>
+          <Button variant="ghost" size="icon" onClick={deleteSession}>
+            <Trash2 className="h-4 w-4 text-error" />
           </Button>
         </div>
       </div>
