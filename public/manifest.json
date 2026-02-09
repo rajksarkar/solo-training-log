@@ -1,0 +1,16 @@
+{
+  "name": "Solo Training Log",
+  "short_name": "Training Log",
+  "description": "Track your workouts, build plans, and see progress",
+  "start_url": "/app",
+  "display": "standalone",
+  "background_color": "#fbfdf8",
+  "theme_color": "#006d40",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    }
+  ]
+}

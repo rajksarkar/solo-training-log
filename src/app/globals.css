@@ -1,0 +1,136 @@
+@import "tailwindcss";
+
+/* ─── Material Design 3 Token System ─── */
+:root {
+  /* Primary (green-derived) */
+  --md-primary: #006d40;
+  --md-on-primary: #ffffff;
+  --md-primary-container: #90f7b9;
+  --md-on-primary-container: #002110;
+
+  /* Secondary */
+  --md-secondary: #4e6354;
+  --md-on-secondary: #ffffff;
+  --md-secondary-container: #d0e8d5;
+  --md-on-secondary-container: #0b1f13;
+
+  /* Tertiary */
+  --md-tertiary: #3b6470;
+  --md-on-tertiary: #ffffff;
+  --md-tertiary-container: #bfe9f7;
+  --md-on-tertiary-container: #001f27;
+
+  /* Error */
+  --md-error: #ba1a1a;
+  --md-on-error: #ffffff;
+  --md-error-container: #ffdad6;
+  --md-on-error-container: #410002;
+
+  /* Surface hierarchy */
+  --md-surface: #fbfdf8;
+  --md-on-surface: #191c19;
+  --md-on-surface-variant: #414941;
+  --md-surface-container-lowest: #ffffff;
+  --md-surface-container-low: #f1f4ef;
+  --md-surface-container: #ebeee9;
+  --md-surface-container-high: #e6e9e3;
+  --md-surface-container-highest: #e0e3dd;
+
+  /* Outline */
+  --md-outline: #717971;
+  --md-outline-variant: #c1c9bf;
+
+  /* Inverse */
+  --md-inverse-surface: #2e312e;
+  --md-inverse-on-surface: #eff1ec;
+  --md-inverse-primary: #74da9e;
+
+  /* MD3 Elevation shadows */
+  --md-elevation-1: 0 1px 2px rgba(0,0,0,0.3), 0 1px 3px 1px rgba(0,0,0,0.15);
+  --md-elevation-2: 0 1px 2px rgba(0,0,0,0.3), 0 2px 6px 2px rgba(0,0,0,0.15);
+  --md-elevation-3: 0 4px 8px 3px rgba(0,0,0,0.15), 0 1px 3px rgba(0,0,0,0.3);
+  --md-elevation-4: 0 6px 10px 4px rgba(0,0,0,0.15), 0 2px 3px rgba(0,0,0,0.3);
+  --md-elevation-5: 0 8px 12px 6px rgba(0,0,0,0.15), 0 4px 4px rgba(0,0,0,0.3);
+
+  /* MD3 Shape corners */
+  --md-shape-xs: 4px;
+  --md-shape-sm: 8px;
+  --md-shape-md: 12px;
+  --md-shape-lg: 16px;
+  --md-shape-xl: 28px;
+  --md-shape-full: 9999px;
+
+  /* MD3 Motion */
+  --md-motion-duration-short4: 200ms;
+  --md-motion-duration-medium2: 300ms;
+  --md-motion-duration-medium4: 400ms;
+  --md-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --md-motion-easing-emphasized: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@theme inline {
+  /* Colors — direct hex values so Tailwind can decompose for opacity modifiers */
+  --color-primary: #006d40;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #90f7b9;
+  --color-on-primary-container: #002110;
+
+  --color-secondary: #4e6354;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #d0e8d5;
+  --color-on-secondary-container: #0b1f13;
+
+  --color-tertiary: #3b6470;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #bfe9f7;
+  --color-on-tertiary-container: #001f27;
+
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #410002;
+
+  --color-surface: #fbfdf8;
+  --color-on-surface: #191c19;
+  --color-on-surface-variant: #414941;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f1f4ef;
+  --color-surface-container: #ebeee9;
+  --color-surface-container-high: #e6e9e3;
+  --color-surface-container-highest: #e0e3dd;
+
+  --color-outline: #717971;
+  --color-outline-variant: #c1c9bf;
+
+  --color-inverse-surface: #2e312e;
+  --color-inverse-on-surface: #eff1ec;
+  --color-inverse-primary: #74da9e;
+
+  /* Shadows */
+  --shadow-elevation-1: var(--md-elevation-1);
+  --shadow-elevation-2: var(--md-elevation-2);
+  --shadow-elevation-3: var(--md-elevation-3);
+  --shadow-elevation-4: var(--md-elevation-4);
+  --shadow-elevation-5: var(--md-elevation-5);
+
+  /* Border radius */
+  --radius-xs: var(--md-shape-xs);
+  --radius-sm: var(--md-shape-sm);
+  --radius-md: var(--md-shape-md);
+  --radius-lg: var(--md-shape-lg);
+  --radius-xl: var(--md-shape-xl);
+  --radius-full: var(--md-shape-full);
+
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+}
+
+body {
+  background: var(--md-surface);
+  color: var(--md-on-surface);
+}
+
+@layer base {
+  * {
+    @apply border-outline-variant;
+  }
+}

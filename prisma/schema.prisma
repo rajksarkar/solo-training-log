@@ -1,0 +1,136 @@
+// Solo Training Log - Prisma Schema
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ExerciseCategory {
+  strength
+  cardio
+  zone2
+  pilates
+  mobility
+  plyometrics
+  stretching
+  other
+}
+
+enum WeightUnit {
+  lb
+  kg
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String?   @map("password_hash")
+  name         String?
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  exercises        Exercise[]
+  sessionTemplates SessionTemplate[]
+  sessions         Session[]
+}
+
+model Exercise {
+  id           String           @id @default(cuid())
+  ownerId      String?          @map("owner_id")
+  name         String
+  category     ExerciseCategory
+  equipment    Json             @default("[]")
+  muscles      Json             @default("[]")
+  instructions String           @default("")
+  youtubeId    String?          @map("youtube_id")
+  createdAt    DateTime         @default(now()) @map("created_at")
+
+  owner              User?              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  templateExercises  TemplateExercise[]
+  sessionExercises   SessionExercise[]
+}
+
+model SessionTemplate {
+  id        String   @id @default(cuid())
+  ownerId   String   @map("owner_id")
+  title     String
+  category  ExerciseCategory
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  owner      User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  exercises  TemplateExercise[]
+  sessions   Session[]
+}
+
+model TemplateExercise {
+  id                 String   @id @default(cuid())
+  templateId         String   @map("template_id")
+  exerciseId         String   @map("exercise_id")
+  order              Int
+  defaultSets        Int?     @map("default_sets")
+  defaultReps        Int?     @map("default_reps")
+  defaultWeight      Float?   @map("default_weight")
+  defaultDurationSec Int?     @map("default_duration_sec")
+
+  template SessionTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  exercise Exercise        @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, exerciseId, order])
+  @@map("template_exercises")
+}
+
+model Session {
+  id         String    @id @default(cuid())
+  ownerId    String    @map("owner_id")
+  title      String
+  category   ExerciseCategory
+  date       DateTime
+  notes      String?
+  templateId String?   @map("template_id")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  owner     User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  template  SessionTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  exercises SessionExercise[]
+
+  @@index([ownerId, date])
+  @@map("sessions")
+}
+
+model SessionExercise {
+  id         String  @id @default(cuid())
+  sessionId  String  @map("session_id")
+  exerciseId String  @map("exercise_id")
+  order      Int
+  notes      String?
+
+  session Session    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exercise Exercise  @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  setLogs  SetLog[]
+
+  @@unique([sessionId, exerciseId, order])
+  @@map("session_exercises")
+}
+
+model SetLog {
+  id                String      @id @default(cuid())
+  sessionExerciseId String      @map("session_exercise_id")
+  setIndex          Int         @map("set_index")
+  reps              Int?
+  weight            Float?
+  unit              WeightUnit  @default(lb)
+  durationSec       Int?        @map("duration_sec")
+  distanceMeters    Int?        @map("distance_meters")
+  rpe               Int?
+  completed         Boolean     @default(true)
+  notes             String?
+
+  sessionExercise SessionExercise @relation(fields: [sessionExerciseId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionExerciseId, setIndex])
+  @@index([sessionExerciseId])
+  @@map("set_logs")
+}
