@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { auth } from "@/lib/auth";
 import { LogoutButton } from "@/components/logout-button";
 import { BottomNav } from "@/components/bottom-nav";
@@ -27,7 +28,8 @@ export default async function AppLayout({
     <div className="min-h-screen flex flex-col pb-20 sm:pb-0">
       <header className="bg-surface sticky top-0 z-40 shadow-elevation-1">
         <div className="container mx-auto px-3 sm:px-4 h-16 flex items-center justify-between gap-2">
-          <Link href="/app" className="font-semibold text-on-surface text-sm sm:text-base truncate min-w-0">
+          <Link href="/app" className="font-semibold text-on-surface text-sm sm:text-base truncate min-w-0 flex items-center gap-2">
+            <Image src="/icon-192.png" alt="" width={28} height={28} className="rounded-md" />
             Solo Training Log
           </Link>
           <nav className="hidden sm:flex items-center gap-1">
