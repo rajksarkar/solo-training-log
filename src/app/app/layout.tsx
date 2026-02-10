@@ -2,7 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { auth } from "@/lib/auth";
 import { LogoutButton } from "@/components/logout-button";
-import { BottomNav } from "@/components/bottom-nav";
+import { MobileNav } from "@/components/bottom-nav";
 import {
   LayoutDashboard,
   Dumbbell,
@@ -50,11 +50,11 @@ export default async function AppLayout({
           </div>
           <LogoutButton className="sm:hidden" />
         </div>
+        <MobileNav />
       </header>
       <main className="flex-1 overflow-y-auto overscroll-y-contain sm:overflow-visible sm:overscroll-auto">
         <div className="container mx-auto px-4 sm:px-6 py-6 max-w-5xl">{children}</div>
       </main>
-      <BottomNav />
     </div>
   );
 }
