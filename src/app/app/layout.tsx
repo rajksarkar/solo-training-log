@@ -25,8 +25,8 @@ export default async function AppLayout({
   ];
 
   return (
-    <div className="min-h-screen flex flex-col pb-[calc(5rem+env(safe-area-inset-bottom))] sm:pb-0">
-      <header className="glass-dark sticky top-0 z-40 border-b border-white/[0.06]">
+    <div className="h-[100dvh] flex flex-col overflow-hidden sm:h-auto sm:min-h-screen sm:overflow-visible">
+      <header className="shrink-0 glass-dark z-40 border-b border-white/[0.06] pt-[env(safe-area-inset-top)] sm:sticky sm:top-0 sm:pt-0">
         <div className="container mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
           <Link href="/app" className="font-semibold text-white text-[15px] tracking-tight truncate min-w-0 flex items-center gap-2.5 hover:opacity-80 transition-opacity">
             <Image src="/icon-192.png" alt="" width={28} height={28} className="rounded-lg" />
@@ -51,8 +51,10 @@ export default async function AppLayout({
           <LogoutButton className="sm:hidden" />
         </div>
       </header>
+      <main className="flex-1 overflow-y-auto overscroll-y-contain sm:overflow-visible sm:overscroll-auto">
+        <div className="container mx-auto px-4 sm:px-6 py-6 max-w-5xl">{children}</div>
+      </main>
       <BottomNav />
-      <main className="flex-1 container mx-auto px-4 sm:px-6 py-6 max-w-5xl">{children}</main>
     </div>
   );
 }

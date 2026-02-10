@@ -143,6 +143,13 @@ body {
   background: var(--md-surface);
   color: var(--md-on-surface);
   -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+@media (min-width: 640px) {
+  body {
+    overscroll-behavior-y: auto;
+  }
 }
 
 @layer base {

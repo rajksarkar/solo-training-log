@@ -25,7 +25,7 @@ export function BottomNav() {
   }
 
   return (
-    <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 glass border-t border-outline-variant/30 pb-[env(safe-area-inset-bottom)]">
+    <nav className="sm:hidden shrink-0 z-40 glass border-t border-outline-variant/30 pb-[env(safe-area-inset-bottom)]">
       <div className="flex justify-around items-center h-16">
         {nav.map((item) => {
           const active = isActive(item.href);
