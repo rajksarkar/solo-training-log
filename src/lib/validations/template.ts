@@ -1,13 +1,7 @@
 import { z } from "zod";
+import { CATEGORIES } from "@/lib/constants";
 
-const exerciseCategoryEnum = z.enum([
-  "strength",
-  "cardio",
-  "zone2",
-  "pilates",
-  "mobility",
-  "other",
-]);
+const exerciseCategoryEnum = z.enum(CATEGORIES);
 
 export const createTemplateSchema = z.object({
   title: z.string().min(1, "Title is required").max(200),

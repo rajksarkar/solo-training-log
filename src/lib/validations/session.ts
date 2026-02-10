@@ -1,13 +1,7 @@
 import { z } from "zod";
+import { CATEGORIES } from "@/lib/constants";
 
-const exerciseCategoryEnum = z.enum([
-  "strength",
-  "cardio",
-  "zone2",
-  "pilates",
-  "mobility",
-  "other",
-]);
+const exerciseCategoryEnum = z.enum(CATEGORIES);
 
 const weightUnitEnum = z.enum(["lb", "kg"]);
 
