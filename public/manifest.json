@@ -4,8 +4,8 @@
   "description": "Track your workouts, build plans, and see progress",
   "start_url": "/app",
   "display": "standalone",
-  "background_color": "#fbfdf8",
-  "theme_color": "#006d40",
+  "background_color": "#f7f4f0",
+  "theme_color": "#1a2e22",
   "icons": [
     {
       "src": "/icon-192.png",

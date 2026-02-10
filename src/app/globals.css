@@ -1,110 +1,123 @@
 @import "tailwindcss";
 
-/* ─── Material Design 3 Token System ─── */
+/* ─── Botanical Luxury Design System ─── */
+/* Inspired by Apple.com precision + Etsy warmth */
+/* Deep forest greens, warm stone, golden accents */
+
 :root {
-  /* Primary (green-derived) */
-  --md-primary: #006d40;
+  /* Primary — deep forest green */
+  --md-primary: #1a5c3a;
   --md-on-primary: #ffffff;
-  --md-primary-container: #90f7b9;
-  --md-on-primary-container: #002110;
+  --md-primary-container: #d4f5e2;
+  --md-on-primary-container: #0d2b1a;
 
-  /* Secondary */
-  --md-secondary: #4e6354;
+  /* Secondary — warm sage */
+  --md-secondary: #5c6b5e;
   --md-on-secondary: #ffffff;
-  --md-secondary-container: #d0e8d5;
-  --md-on-secondary-container: #0b1f13;
+  --md-secondary-container: #e8f0e9;
+  --md-on-secondary-container: #2a3a2d;
 
-  /* Tertiary */
-  --md-tertiary: #3b6470;
+  /* Tertiary — warm gold accent */
+  --md-tertiary: #8b7355;
   --md-on-tertiary: #ffffff;
-  --md-tertiary-container: #bfe9f7;
-  --md-on-tertiary-container: #001f27;
+  --md-tertiary-container: #f5ead8;
+  --md-on-tertiary-container: #3d2e17;
 
   /* Error */
-  --md-error: #ba1a1a;
+  --md-error: #c4321d;
   --md-on-error: #ffffff;
-  --md-error-container: #ffdad6;
-  --md-on-error-container: #410002;
+  --md-error-container: #fce4e0;
+  --md-on-error-container: #5a1009;
 
-  /* Surface hierarchy */
-  --md-surface: #fbfdf8;
-  --md-on-surface: #191c19;
-  --md-on-surface-variant: #414941;
-  --md-surface-container-lowest: #ffffff;
-  --md-surface-container-low: #f1f4ef;
-  --md-surface-container: #ebeee9;
-  --md-surface-container-high: #e6e9e3;
-  --md-surface-container-highest: #e0e3dd;
+  /* Surface — warm cream tones, NOT stark white */
+  --md-surface: #f7f4f0;
+  --md-on-surface: #1a1c1a;
+  --md-on-surface-variant: #5c635d;
+  --md-surface-container-lowest: #faf8f5;
+  --md-surface-container-low: #f2efe9;
+  --md-surface-container: #ece8e2;
+  --md-surface-container-high: #e5e1da;
+  --md-surface-container-highest: #dedad3;
 
   /* Outline */
-  --md-outline: #717971;
-  --md-outline-variant: #c1c9bf;
+  --md-outline: #8a9089;
+  --md-outline-variant: #cdd1ca;
 
-  /* Inverse */
-  --md-inverse-surface: #2e312e;
-  --md-inverse-on-surface: #eff1ec;
-  --md-inverse-primary: #74da9e;
+  /* Inverse — dark mode accents */
+  --md-inverse-surface: #1a2e22;
+  --md-inverse-on-surface: #e8ede9;
+  --md-inverse-primary: #7dd4a3;
 
-  /* MD3 Elevation shadows */
-  --md-elevation-1: 0 1px 2px rgba(0,0,0,0.3), 0 1px 3px 1px rgba(0,0,0,0.15);
-  --md-elevation-2: 0 1px 2px rgba(0,0,0,0.3), 0 2px 6px 2px rgba(0,0,0,0.15);
-  --md-elevation-3: 0 4px 8px 3px rgba(0,0,0,0.15), 0 1px 3px rgba(0,0,0,0.3);
-  --md-elevation-4: 0 6px 10px 4px rgba(0,0,0,0.15), 0 2px 3px rgba(0,0,0,0.3);
-  --md-elevation-5: 0 8px 12px 6px rgba(0,0,0,0.15), 0 4px 4px rgba(0,0,0,0.3);
+  /* Elevation shadows — warmer undertones */
+  --md-elevation-1: 0 1px 3px rgba(26,44,34,0.06), 0 1px 2px rgba(26,44,34,0.08);
+  --md-elevation-2: 0 3px 6px rgba(26,44,34,0.08), 0 2px 4px rgba(26,44,34,0.06);
+  --md-elevation-3: 0 6px 16px rgba(26,44,34,0.10), 0 2px 6px rgba(26,44,34,0.06);
+  --md-elevation-4: 0 10px 24px rgba(26,44,34,0.12), 0 4px 8px rgba(26,44,34,0.06);
+  --md-elevation-5: 0 16px 40px rgba(26,44,34,0.14), 0 6px 12px rgba(26,44,34,0.06);
 
-  /* MD3 Shape corners */
-  --md-shape-xs: 4px;
-  --md-shape-sm: 8px;
-  --md-shape-md: 12px;
-  --md-shape-lg: 16px;
+  /* Shape — more refined, Apple-like radii */
+  --md-shape-xs: 6px;
+  --md-shape-sm: 10px;
+  --md-shape-md: 14px;
+  --md-shape-lg: 20px;
   --md-shape-xl: 28px;
   --md-shape-full: 9999px;
 
-  /* MD3 Motion */
-  --md-motion-duration-short4: 200ms;
-  --md-motion-duration-medium2: 300ms;
-  --md-motion-duration-medium4: 400ms;
-  --md-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
-  --md-motion-easing-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  /* Motion — Apple-like spring curves */
+  --md-motion-duration-short4: 180ms;
+  --md-motion-duration-medium2: 280ms;
+  --md-motion-duration-medium4: 380ms;
+  --md-motion-easing-standard: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --md-motion-easing-emphasized: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 @theme inline {
-  /* Colors — direct hex values so Tailwind can decompose for opacity modifiers */
-  --color-primary: #006d40;
+  /* Colors — direct hex values (CRITICAL for Tailwind v4 opacity decomposition) */
+  --color-primary: #1a5c3a;
   --color-on-primary: #ffffff;
-  --color-primary-container: #90f7b9;
-  --color-on-primary-container: #002110;
+  --color-primary-container: #d4f5e2;
+  --color-on-primary-container: #0d2b1a;
 
-  --color-secondary: #4e6354;
+  --color-secondary: #5c6b5e;
   --color-on-secondary: #ffffff;
-  --color-secondary-container: #d0e8d5;
-  --color-on-secondary-container: #0b1f13;
+  --color-secondary-container: #e8f0e9;
+  --color-on-secondary-container: #2a3a2d;
 
-  --color-tertiary: #3b6470;
+  --color-tertiary: #8b7355;
   --color-on-tertiary: #ffffff;
-  --color-tertiary-container: #bfe9f7;
-  --color-on-tertiary-container: #001f27;
+  --color-tertiary-container: #f5ead8;
+  --color-on-tertiary-container: #3d2e17;
 
-  --color-error: #ba1a1a;
+  --color-error: #c4321d;
   --color-on-error: #ffffff;
-  --color-error-container: #ffdad6;
-  --color-on-error-container: #410002;
+  --color-error-container: #fce4e0;
+  --color-on-error-container: #5a1009;
 
-  --color-surface: #fbfdf8;
-  --color-on-surface: #191c19;
-  --color-on-surface-variant: #414941;
-  --color-surface-container-lowest: #ffffff;
-  --color-surface-container-low: #f1f4ef;
-  --color-surface-container: #ebeee9;
-  --color-surface-container-high: #e6e9e3;
-  --color-surface-container-highest: #e0e3dd;
+  --color-surface: #f7f4f0;
+  --color-on-surface: #1a1c1a;
+  --color-on-surface-variant: #5c635d;
+  --color-surface-container-lowest: #faf8f5;
+  --color-surface-container-low: #f2efe9;
+  --color-surface-container: #ece8e2;
+  --color-surface-container-high: #e5e1da;
+  --color-surface-container-highest: #dedad3;
 
-  --color-outline: #717971;
-  --color-outline-variant: #c1c9bf;
+  --color-outline: #8a9089;
+  --color-outline-variant: #cdd1ca;
 
-  --color-inverse-surface: #2e312e;
-  --color-inverse-on-surface: #eff1ec;
-  --color-inverse-primary: #74da9e;
+  --color-inverse-surface: #1a2e22;
+  --color-inverse-on-surface: #e8ede9;
+  --color-inverse-primary: #7dd4a3;
+
+  /* Accent colors for category chips */
+  --color-accent-gold: #c49a52;
+  --color-accent-gold-soft: #f5ead8;
+  --color-accent-teal: #3d8b7a;
+  --color-accent-teal-soft: #d4f0ea;
+  --color-accent-rose: #b85c6b;
+  --color-accent-rose-soft: #f5dce0;
+  --color-accent-slate: #6b7c8a;
+  --color-accent-slate-soft: #e0e8ee;
 
   /* Shadows */
   --shadow-elevation-1: var(--md-elevation-1);
@@ -121,9 +134,11 @@
   --radius-xl: var(--md-shape-xl);
   --radius-full: var(--md-shape-full);
 
-  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-sans: var(--font-dm-sans), system-ui, sans-serif;
+  --font-display: var(--font-instrument-serif), Georgia, serif;
 }
 
+/* ─── Base styles ─── */
 body {
   background: var(--md-surface);
   color: var(--md-on-surface);
@@ -133,4 +148,141 @@ body {
   * {
     @apply border-outline-variant;
   }
+}
+
+/* ─── Grain texture overlay ─── */
+.grain::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+/* ─── Custom animations ─── */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.5s var(--md-motion-easing-emphasized) both;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s var(--md-motion-easing-standard) both;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.35s var(--md-motion-easing-emphasized) both;
+}
+
+.animate-shimmer {
+  background-size: 200% 100%;
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+/* Stagger support */
+.stagger-1 { animation-delay: 50ms; }
+.stagger-2 { animation-delay: 100ms; }
+.stagger-3 { animation-delay: 150ms; }
+.stagger-4 { animation-delay: 200ms; }
+.stagger-5 { animation-delay: 250ms; }
+.stagger-6 { animation-delay: 300ms; }
+
+/* ─── Gradient mesh for hero sections ─── */
+.gradient-mesh {
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(26,92,58,0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(139,115,85,0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(61,139,122,0.06) 0%, transparent 50%),
+    var(--md-surface);
+}
+
+/* ─── Glass effect ─── */
+.glass {
+  background: rgba(250,248,245,0.72);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+}
+
+.glass-dark {
+  background: rgba(26,46,34,0.85);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+}
+
+/* ─── Scrollbar styling ─── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--md-outline-variant);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--md-outline);
+}
+
+/* ─── Category color mapping ─── */
+.cat-strength { --cat-bg: #d4f5e2; --cat-text: #0d2b1a; --cat-accent: #1a5c3a; }
+.cat-cardio { --cat-bg: #fce4e0; --cat-text: #5a1009; --cat-accent: #c4321d; }
+.cat-zone2 { --cat-bg: #d4f0ea; --cat-text: #0d2b22; --cat-accent: #3d8b7a; }
+.cat-pilates { --cat-bg: #f5dce0; --cat-text: #3d1722; --cat-accent: #b85c6b; }
+.cat-mobility { --cat-bg: #f5ead8; --cat-text: #3d2e17; --cat-accent: #8b7355; }
+.cat-plyometrics { --cat-bg: #e0e8ee; --cat-text: #1a2e3d; --cat-accent: #4a6b8a; }
+.cat-stretching { --cat-bg: #e8f0e9; --cat-text: #2a3a2d; --cat-accent: #5c6b5e; }
+.cat-other { --cat-bg: #ece8e2; --cat-text: #3d3a35; --cat-accent: #8a9089; }
+
+/* ─── Selection color ─── */
+::selection {
+  background: rgba(26,92,58,0.15);
+  color: #0d2b1a;
 }

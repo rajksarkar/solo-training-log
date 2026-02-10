@@ -26,33 +26,33 @@ export default async function AppLayout({
 
   return (
     <div className="min-h-screen flex flex-col pb-20 sm:pb-0">
-      <header className="bg-surface sticky top-0 z-40 shadow-elevation-1">
-        <div className="container mx-auto px-3 sm:px-4 h-16 flex items-center justify-between gap-2">
-          <Link href="/app" className="font-semibold text-on-surface text-sm sm:text-base truncate min-w-0 flex items-center gap-2">
-            <Image src="/icon-192.png" alt="" width={28} height={28} className="rounded-md" />
-            Solo Training Log
+      <header className="glass-dark sticky top-0 z-40 border-b border-white/[0.06]">
+        <div className="container mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+          <Link href="/app" className="font-semibold text-white text-[15px] tracking-tight truncate min-w-0 flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+            <Image src="/icon-192.png" alt="" width={28} height={28} className="rounded-lg" />
+            <span className="font-display italic">Solo</span>
           </Link>
-          <nav className="hidden sm:flex items-center gap-1">
+          <nav className="hidden sm:flex items-center gap-0.5 bg-white/[0.06] rounded-full px-1 py-1">
             {nav.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className="px-3 py-2 text-sm text-on-surface-variant hover:text-on-surface hover:bg-primary/[0.08] rounded-full flex items-center gap-2 transition-colors"
+                className="px-4 py-2 text-[13px] font-medium text-white/70 hover:text-white hover:bg-white/[0.08] rounded-full flex items-center gap-2 transition-all duration-200"
               >
-                <item.icon className="h-4 w-4" />
+                <item.icon className="h-3.5 w-3.5" />
                 {item.label}
               </Link>
             ))}
           </nav>
-          <div className="hidden sm:flex items-center gap-2">
-            <span className="text-sm text-on-surface-variant truncate max-w-[120px]">{session?.user?.email}</span>
+          <div className="hidden sm:flex items-center gap-3">
+            <span className="text-[13px] text-white/50 truncate max-w-[140px]">{session?.user?.email}</span>
             <LogoutButton />
           </div>
           <LogoutButton className="sm:hidden" />
         </div>
       </header>
       <BottomNav />
-      <main className="flex-1 container mx-auto px-3 sm:px-4 py-4 max-w-full">{children}</main>
+      <main className="flex-1 container mx-auto px-4 sm:px-6 py-6 max-w-5xl">{children}</main>
     </div>
   );
 }

@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, ArrowRight, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FAB } from "@/components/ui/fab";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -30,6 +29,17 @@ type Template = {
   category: string;
   notes: string | null;
   exercises: { exercise: { name: string } }[];
+};
+
+const CATEGORY_COLORS: Record<string, string> = {
+  strength: "bg-primary-container text-on-primary-container",
+  cardio: "bg-error-container text-on-error-container",
+  zone2: "bg-accent-teal-soft text-on-primary-container",
+  pilates: "bg-accent-rose-soft text-on-error-container",
+  mobility: "bg-tertiary-container text-on-tertiary-container",
+  plyometrics: "bg-accent-slate-soft text-on-primary-container",
+  stretching: "bg-secondary-container text-on-secondary-container",
+  other: "bg-surface-container-high text-on-surface-variant",
 };
 
 export default function TemplatesPage() {
@@ -75,13 +85,16 @@ export default function TemplatesPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6 animate-fade-up">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl font-bold">Templates</h1>
+        <div>
+          <h1 className="text-2xl font-display italic text-on-surface">Templates</h1>
+          <p className="text-sm text-on-surface-variant mt-0.5">Create reusable workout plans</p>
+        </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
+            <Button className="hidden sm:inline-flex gap-2">
+              <Plus className="h-4 w-4" />
               Create Template
             </Button>
           </DialogTrigger>
@@ -120,40 +133,48 @@ export default function TemplatesPage() {
               <div className="space-y-2">
                 <Label>Notes</Label>
                 <textarea
-                  className="flex min-h-[60px] w-full rounded-lg border border-outline-variant px-3 py-2 text-sm"
+                  className="flex min-h-[60px] w-full rounded-xl border border-outline-variant/60 bg-surface-container-lowest px-4 py-2.5 text-[15px] text-on-surface placeholder:text-on-surface-variant/60 focus-visible:outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20 transition-all duration-200"
                   value={form.notes}
                   onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
                   placeholder="Optional notes"
                 />
               </div>
-              <Button type="submit">Create</Button>
+              <Button type="submit" className="w-full">Create</Button>
             </form>
           </DialogContent>
         </Dialog>
       </div>
 
       {loading ? (
-        <p className="text-on-surface-variant">Loading...</p>
+        <div className="flex items-center justify-center py-16">
+          <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+        </div>
       ) : templates.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-on-surface-variant">
-            No templates yet. Create one to get started.
-          </CardContent>
-        </Card>
+        <div className="py-16 text-center">
+          <FileText className="h-10 w-10 mx-auto text-on-surface-variant/30 mb-3" />
+          <p className="text-on-surface-variant">No templates yet.</p>
+          <p className="text-sm text-on-surface-variant/60 mt-1">Create one to speed up your sessions.</p>
+        </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {templates.map((t) => (
             <Link key={t.id} href={`/app/templates/${t.id}`}>
-              <Card className="hover:bg-primary/[0.08] transition-colors cursor-pointer">
-                <CardHeader>
+              <div className="group rounded-2xl bg-surface-container-lowest border border-outline-variant/30 shadow-elevation-1 hover:shadow-elevation-3 hover:border-primary/20 transition-all duration-200 overflow-hidden">
+                <div className="h-1 bg-gradient-to-r from-primary/60 to-tertiary/40" />
+                <div className="p-5">
                   <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-base">{t.title}</CardTitle>
-                      <p className="text-sm text-on-surface-variant">{t.category}</p>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-on-surface group-hover:text-primary transition-colors truncate">
+                        {t.title}
+                      </h3>
+                      <span className={`inline-block mt-1.5 px-2 py-0.5 text-[11px] font-medium rounded-full capitalize ${CATEGORY_COLORS[t.category] ?? CATEGORY_COLORS.other}`}>
+                        {t.category}
+                      </span>
                     </div>
                     <Button
                       variant="ghost"
                       size="icon"
+                      className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -163,13 +184,14 @@ export default function TemplatesPage() {
                       <Trash2 className="h-4 w-4 text-error" />
                     </Button>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-on-surface-variant">
-                    {t.exercises.length} exercise{t.exercises.length !== 1 ? "s" : ""}
-                  </p>
-                </CardContent>
-              </Card>
+                  <div className="flex items-center justify-between mt-4 pt-3 border-t border-outline-variant/20">
+                    <p className="text-xs text-on-surface-variant">
+                      {t.exercises.length} exercise{t.exercises.length !== 1 ? "s" : ""}
+                    </p>
+                    <ArrowRight className="h-3.5 w-3.5 text-on-surface-variant/40 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                  </div>
+                </div>
+              </div>
             </Link>
           ))}
         </div>

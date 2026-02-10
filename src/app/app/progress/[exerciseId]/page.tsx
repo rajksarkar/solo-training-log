@@ -3,10 +3,9 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Play } from "lucide-react";
+import { ArrowLeft, Play, TrendingUp, Trophy } from "lucide-react";
 import { ExerciseDetailDialog } from "@/components/exercise-detail-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   LineChart,
   Line,
@@ -63,9 +62,9 @@ export default function ProgressPage() {
 
   if (!data) {
     return (
-      <div className="space-y-6">
+      <div className="flex items-center justify-center py-16">
         {loading ? (
-          <p className="text-on-surface-variant">Loading...</p>
+          <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
         ) : (
           <p className="text-on-surface-variant">Exercise not found</p>
         )}
@@ -88,23 +87,25 @@ export default function ProgressPage() {
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link href="/app/exercises">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+    <div className="space-y-6 animate-fade-up">
+      {/* Header */}
+      <div className="flex items-start gap-3">
+        <Link
+          href="/app/exercises"
+          className="mt-1 inline-flex h-10 w-10 items-center justify-center rounded-lg text-on-surface-variant hover:bg-on-surface/[0.05] hover:text-on-surface transition-all duration-200 shrink-0"
+        >
+          <ArrowLeft className="h-4 w-4" />
         </Link>
         <div>
           <button
             type="button"
             onClick={() => setShowDetail(true)}
-            className="text-2xl font-bold text-primary hover:text-primary flex items-center gap-2"
+            className="text-2xl font-display italic text-on-surface hover:text-primary flex items-center gap-2 transition-colors duration-200"
           >
             {data.exercise.name}
-            <Play className="h-5 w-5" />
+            <Play className="h-5 w-5 opacity-50" />
           </button>
-          <p className="text-on-surface-variant">{data.exercise.category}</p>
+          <p className="text-sm text-on-surface-variant capitalize">{data.exercise.category}</p>
         </div>
       </div>
 
@@ -116,39 +117,56 @@ export default function ProgressPage() {
         />
       )}
 
+      {/* Chart */}
       {chartData.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Progress</CardTitle>
-            <p className="text-sm text-on-surface-variant">
+        <div className="rounded-2xl border border-outline-variant/30 bg-surface-container-lowest shadow-elevation-1 overflow-hidden">
+          <div className="px-5 py-4 border-b border-outline-variant/20">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-primary" />
+              <h2 className="font-semibold text-on-surface">Progress</h2>
+            </div>
+            <p className="text-xs text-on-surface-variant mt-0.5">
               {isStrength
                 ? "Best set weight & volume over time"
                 : isCardioLike
                   ? "Duration (minutes) over time"
                   : "Activity over time"}
             </p>
-          </CardHeader>
-          <CardContent>
+          </div>
+          <div className="p-5">
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--md-outline-variant)" strokeOpacity={0.4} />
                   <XAxis
                     dataKey="date"
-                    tick={{ fontSize: 12 }}
+                    tick={{ fontSize: 11, fill: "var(--md-on-surface-variant)" }}
                     tickFormatter={(v) =>
                       new Date(v).toLocaleDateString(undefined, {
                         month: "short",
                         day: "numeric",
                       })
                     }
+                    axisLine={{ stroke: "var(--md-outline-variant)", strokeOpacity: 0.4 }}
+                    tickLine={false}
                   />
-                  <YAxis tick={{ fontSize: 12 }} />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: "var(--md-on-surface-variant)" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
                   <Tooltip
                     formatter={(value: number) => [value, ""]}
                     labelFormatter={(label) =>
                       new Date(label).toLocaleDateString()
                     }
+                    contentStyle={{
+                      background: "var(--md-surface-container-lowest)",
+                      border: "1px solid var(--md-outline-variant)",
+                      borderRadius: "12px",
+                      fontSize: "13px",
+                      boxShadow: "var(--md-elevation-2)",
+                    }}
                   />
                   {isStrength && (
                     <>
@@ -156,8 +174,9 @@ export default function ProgressPage() {
                         type="monotone"
                         dataKey="weight"
                         stroke="var(--md-primary)"
-                        strokeWidth={2}
-                        dot={{ r: 4 }}
+                        strokeWidth={2.5}
+                        dot={{ r: 4, fill: "var(--md-primary)" }}
+                        activeDot={{ r: 6, fill: "var(--md-primary)" }}
                         name="Best weight"
                       />
                       <Line
@@ -165,8 +184,10 @@ export default function ProgressPage() {
                         dataKey="volume"
                         stroke="var(--md-tertiary)"
                         strokeWidth={2}
-                        dot={{ r: 4 }}
+                        dot={{ r: 3, fill: "var(--md-tertiary)" }}
+                        activeDot={{ r: 5, fill: "var(--md-tertiary)" }}
                         name="Volume"
+                        strokeDasharray="4 2"
                       />
                     </>
                   )}
@@ -175,56 +196,65 @@ export default function ProgressPage() {
                       type="monotone"
                       dataKey="duration"
                       stroke="var(--md-primary)"
-                      strokeWidth={2}
-                      dot={{ r: 4 }}
+                      strokeWidth={2.5}
+                      dot={{ r: 4, fill: "var(--md-primary)" }}
+                      activeDot={{ r: 6, fill: "var(--md-primary)" }}
                       name="Duration (min)"
                     />
                   )}
                 </LineChart>
               </ResponsiveContainer>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
+      {/* Recent PRs */}
       {data.recentPRs.length > 0 && isStrength && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent PRs</CardTitle>
-            <p className="text-sm text-on-surface-variant">Heaviest sets (best effort)</p>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2">
-              {data.recentPRs.map((d) => (
-                <li
-                  key={d.sessionId + d.date}
-                  className="flex justify-between items-center py-2 border-b last:border-0"
+        <div className="rounded-2xl border border-outline-variant/30 bg-surface-container-lowest shadow-elevation-1 overflow-hidden">
+          <div className="px-5 py-4 border-b border-outline-variant/20">
+            <div className="flex items-center gap-2">
+              <Trophy className="h-4 w-4 text-tertiary" />
+              <h2 className="font-semibold text-on-surface">Recent PRs</h2>
+            </div>
+            <p className="text-xs text-on-surface-variant mt-0.5">Heaviest sets (best effort)</p>
+          </div>
+          <ul>
+            {data.recentPRs.map((d, i) => (
+              <li
+                key={d.sessionId + d.date}
+                className={`flex justify-between items-center py-3.5 px-5 hover:bg-primary/[0.04] transition-colors ${
+                  i < data.recentPRs.length - 1 ? "border-b border-outline-variant/15" : ""
+                }`}
+              >
+                <Link
+                  href={`/app/sessions/${d.sessionId}`}
+                  className="text-sm text-on-surface hover:text-primary transition-colors"
                 >
-                  <Link
-                    href={`/app/sessions/${d.sessionId}`}
-                    className="text-primary hover:underline"
-                  >
-                    {new Date(d.date).toLocaleDateString()}
-                  </Link>
-                  {d.bestSet && (
-                    <span className="font-medium">
-                      {d.bestSet.weight} {d.bestSet.unit} × {d.bestSet.reps} reps
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
+                  {new Date(d.date).toLocaleDateString(undefined, {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </Link>
+                {d.bestSet && (
+                  <span className="font-medium text-on-surface text-sm">
+                    {d.bestSet.weight} {d.bestSet.unit} x {d.bestSet.reps} reps
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
+      {/* Empty state */}
       {chartData.length === 0 && data.recentPRs.length === 0 && (
-        <Card>
-          <CardContent className="py-12 text-center text-on-surface-variant">
-            No logged data yet. Complete sessions with this exercise to see
-            progress.
-          </CardContent>
-        </Card>
+        <div className="rounded-2xl border border-outline-variant/30 bg-surface-container-lowest shadow-elevation-1 py-12 text-center">
+          <TrendingUp className="h-10 w-10 mx-auto text-on-surface-variant/30 mb-3" />
+          <p className="text-on-surface-variant">No logged data yet.</p>
+          <p className="text-sm text-on-surface-variant/60 mt-1">Complete sessions with this exercise to see progress.</p>
+        </div>
       )}
     </div>
   );

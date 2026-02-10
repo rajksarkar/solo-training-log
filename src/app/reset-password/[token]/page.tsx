@@ -6,13 +6,6 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 
 export default function ResetPasswordPage() {
   const params = useParams();
@@ -58,51 +51,61 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-surface">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Reset password</CardTitle>
-          <CardDescription>Enter your new password</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
-              <p className="text-sm text-on-error-container bg-error-container p-3 rounded-md">
-                {error}
+    <div className="min-h-screen gradient-mesh flex relative overflow-hidden">
+      <div className="absolute bottom-[20%] right-[10%] w-72 h-72 rounded-full bg-tertiary/[0.04] blur-3xl" />
+
+      <div className="flex-1 flex items-center justify-center p-4 relative z-10">
+        <div className="w-full max-w-[400px] animate-scale-in">
+          <div className="text-center mb-10">
+            <h1 className="font-display italic text-3xl text-on-surface">Solo</h1>
+            <p className="text-sm text-on-surface-variant mt-1">Training Log</p>
+          </div>
+
+          <div className="bg-surface-container-lowest/90 rounded-2xl border border-outline-variant/30 shadow-elevation-2 p-7">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-on-surface">Reset password</h2>
+              <p className="text-sm text-on-surface-variant mt-1">Enter your new password</p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {error && (
+                <p className="text-sm text-on-error-container bg-error-container p-3 rounded-xl">
+                  {error}
+                </p>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="password">New password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={8}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm password</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Resetting..." : "Reset password"}
+              </Button>
+              <p className="text-center text-sm text-on-surface-variant">
+                <Link href="/login" className="text-primary font-medium hover:underline">
+                  Back to login
+                </Link>
               </p>
-            )}
-            <div className="space-y-2">
-              <Label htmlFor="password">New password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={8}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm password</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Resetting..." : "Reset password"}
-            </Button>
-            <p className="text-center text-sm text-on-surface-variant">
-              <Link href="/login" className="text-primary hover:underline">
-                Back to login
-              </Link>
-            </p>
-          </form>
-        </CardContent>
-      </Card>
+            </form>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

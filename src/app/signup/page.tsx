@@ -7,13 +7,6 @@ import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -62,76 +55,91 @@ export default function SignupPage() {
         : null;
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-surface">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Create account</CardTitle>
-          <CardDescription>
-            Sign up to start tracking your workouts
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {errMsg && (
-              <p className="text-sm text-on-error-container bg-error-container p-3 rounded-md">
-                {errMsg}
+    <div className="min-h-screen gradient-mesh flex relative overflow-hidden">
+      {/* Decorative background */}
+      <div className="absolute top-[30%] right-[15%] w-72 h-72 rounded-full bg-primary/[0.05] blur-3xl" />
+      <div className="absolute bottom-[10%] left-[15%] w-64 h-64 rounded-full bg-tertiary/[0.04] blur-3xl" />
+
+      <div className="flex-1 flex items-center justify-center p-4 relative z-10">
+        <div className="w-full max-w-[400px] animate-scale-in">
+          {/* Logo */}
+          <div className="text-center mb-10">
+            <h1 className="font-display italic text-3xl text-on-surface">Solo</h1>
+            <p className="text-sm text-on-surface-variant mt-1">Training Log</p>
+          </div>
+
+          {/* Card */}
+          <div className="bg-surface-container-lowest/90 rounded-2xl border border-outline-variant/30 shadow-elevation-2 p-7">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-on-surface">Create account</h2>
+              <p className="text-sm text-on-surface-variant mt-1">
+                Start tracking your training journey
               </p>
-            )}
-            <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
-              <Input
-                id="name"
-                placeholder="Your name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="At least 8 characters"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={8}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm password</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Creating account..." : "Sign up"}
-            </Button>
-          </form>
-          <p className="mt-4 text-center text-sm text-on-surface-variant">
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {errMsg && (
+                <p className="text-sm text-on-error-container bg-error-container p-3 rounded-xl">
+                  {errMsg}
+                </p>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="name">Name</Label>
+                <Input
+                  id="name"
+                  placeholder="Your name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="At least 8 characters"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={8}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm password</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Creating account..." : "Sign up"}
+              </Button>
+            </form>
+          </div>
+
+          <p className="mt-6 text-center text-sm text-on-surface-variant">
             Already have an account?{" "}
-            <Link href="/login" className="text-primary hover:underline">
+            <Link href="/login" className="text-primary font-medium hover:underline">
               Log in
             </Link>
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

@@ -3,10 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, ArrowRight, Calendar } from "lucide-react";
 import { CATEGORIES } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { FAB } from "@/components/ui/fab";
 import {
   Dialog,
@@ -34,6 +33,17 @@ type Session = {
 };
 
 type Template = { id: string; title: string; category: string };
+
+const CATEGORY_COLORS: Record<string, string> = {
+  strength: "bg-primary-container text-on-primary-container",
+  cardio: "bg-error-container text-on-error-container",
+  zone2: "bg-accent-teal-soft text-on-primary-container",
+  pilates: "bg-accent-rose-soft text-on-error-container",
+  mobility: "bg-tertiary-container text-on-tertiary-container",
+  plyometrics: "bg-accent-slate-soft text-on-primary-container",
+  stretching: "bg-secondary-container text-on-secondary-container",
+  other: "bg-surface-container-high text-on-surface-variant",
+};
 
 export default function SessionsPage() {
   const searchParams = useSearchParams();
@@ -119,13 +129,16 @@ export default function SessionsPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6 animate-fade-up">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl font-bold text-on-surface">Sessions</h1>
+        <div>
+          <h1 className="text-2xl font-display italic text-on-surface">Sessions</h1>
+          <p className="text-sm text-on-surface-variant mt-0.5">Your training history</p>
+        </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button className="hidden sm:inline-flex">
-              <Plus className="h-4 w-4 mr-2" />
+            <Button className="hidden sm:inline-flex gap-2">
+              <Plus className="h-4 w-4" />
               New Session
             </Button>
           </DialogTrigger>
@@ -207,47 +220,58 @@ export default function SessionsPage() {
                   required
                 />
               </div>
-              <Button type="submit">Create & Log</Button>
+              <Button type="submit" className="w-full">Create & Log</Button>
             </form>
           </DialogContent>
         </Dialog>
       </div>
 
       {loading ? (
-        <p className="text-on-surface-variant">Loading...</p>
+        <div className="flex items-center justify-center py-16">
+          <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+        </div>
       ) : sessions.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-on-surface-variant">
-            No sessions yet. Create one to start logging.
-          </CardContent>
-        </Card>
+        <div className="py-16 text-center">
+          <Calendar className="h-10 w-10 mx-auto text-on-surface-variant/30 mb-3" />
+          <p className="text-on-surface-variant">No sessions yet.</p>
+          <p className="text-sm text-on-surface-variant/60 mt-1">Create your first session to start logging.</p>
+        </div>
       ) : (
         <div className="space-y-2">
           {sessions.map((s) => (
             <Link key={s.id} href={`/app/sessions/${s.id}`}>
-              <Card className="hover:bg-primary/[0.08] transition-colors">
-                <CardContent className="py-4 flex justify-between items-center">
-                  <div>
-                    <p className="font-medium text-on-surface">{s.title}</p>
-                    <p className="text-sm text-on-surface-variant">
-                      {new Date(s.date).toLocaleDateString()} · {s.category}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleDelete(s.id);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4 text-error" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="group flex items-center gap-4 p-4 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 shadow-elevation-1 hover:shadow-elevation-2 hover:border-primary/20 transition-all duration-200">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${CATEGORY_COLORS[s.category] ?? CATEGORY_COLORS.other}`}>
+                  <Calendar className="h-4 w-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-on-surface truncate group-hover:text-primary transition-colors">{s.title}</p>
+                  <p className="text-xs text-on-surface-variant mt-0.5">
+                    {new Date(s.date).toLocaleDateString(undefined, {
+                      weekday: "short",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                    <span className="mx-1.5 text-outline-variant">·</span>
+                    <span className="capitalize">{s.category}</span>
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleDelete(s.id);
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 text-error" />
+                  </Button>
+                  <ArrowRight className="h-4 w-4 text-on-surface-variant/40 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                </div>
+              </div>
             </Link>
           ))}
         </div>

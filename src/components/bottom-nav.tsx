@@ -25,30 +25,32 @@ export function BottomNav() {
   }
 
   return (
-    <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface-container h-20 pb-[env(safe-area-inset-bottom)]">
-      <div className="flex justify-around items-center h-full">
+    <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 glass border-t border-outline-variant/30 pb-[env(safe-area-inset-bottom)]">
+      <div className="flex justify-around items-center h-16">
         {nav.map((item) => {
           const active = isActive(item.href);
           return (
             <Link
               key={item.href}
               href={item.href}
-              className="flex flex-col items-center gap-1 min-w-[64px] min-h-[48px] justify-center"
+              className="flex flex-col items-center gap-0.5 min-w-[64px] min-h-[48px] justify-center group"
             >
               <div
-                className={`flex items-center justify-center h-8 w-16 rounded-full transition-colors ${
-                  active ? "bg-secondary-container" : ""
+                className={`flex items-center justify-center h-8 w-14 rounded-full transition-all duration-200 ${
+                  active
+                    ? "bg-primary text-on-primary scale-100"
+                    : "text-on-surface-variant group-hover:bg-on-surface/[0.05]"
                 }`}
               >
                 <item.icon
-                  className={`h-6 w-6 ${
-                    active ? "text-on-secondary-container" : "text-on-surface-variant"
+                  className={`h-[18px] w-[18px] transition-all duration-200 ${
+                    active ? "text-on-primary" : ""
                   }`}
                 />
               </div>
               <span
-                className={`text-xs font-medium ${
-                  active ? "text-on-surface" : "text-on-surface-variant"
+                className={`text-[10px] font-medium tracking-wide transition-colors duration-200 ${
+                  active ? "text-primary" : "text-on-surface-variant"
                 }`}
               >
                 {item.label}
