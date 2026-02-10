@@ -133,7 +133,7 @@ export default function TemplatesPage() {
               <div className="space-y-2">
                 <Label>Notes</Label>
                 <textarea
-                  className="flex min-h-[60px] w-full rounded-xl border border-outline-variant/60 bg-surface-container-lowest px-4 py-2.5 text-[15px] text-on-surface placeholder:text-on-surface-variant/60 focus-visible:outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20 transition-all duration-200"
+                  className="flex min-h-[60px] w-full rounded-xl border border-outline-variant/60 bg-surface-container-lowest px-4 py-2.5 text-base text-on-surface placeholder:text-on-surface-variant/60 focus-visible:outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20 transition-all duration-200"
                   value={form.notes}
                   onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
                   placeholder="Optional notes"

@@ -174,7 +174,7 @@ export default function ExercisesPage() {
               <div className="space-y-2">
                 <Label>Instructions</Label>
                 <textarea
-                  className="flex min-h-[80px] w-full rounded-xl border border-outline-variant/60 bg-surface-container-lowest px-4 py-2.5 text-[15px] text-on-surface placeholder:text-on-surface-variant/60 focus-visible:outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20 transition-all duration-200"
+                  className="flex min-h-[80px] w-full rounded-xl border border-outline-variant/60 bg-surface-container-lowest px-4 py-2.5 text-base text-on-surface placeholder:text-on-surface-variant/60 focus-visible:outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20 transition-all duration-200"
                   value={form.instructions}
                   onChange={(e) => setForm((f) => ({ ...f, instructions: e.target.value }))}
                   placeholder="Step-by-step how to perform..."

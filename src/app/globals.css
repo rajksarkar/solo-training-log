@@ -142,11 +142,24 @@
 body {
   background: var(--md-surface);
   color: var(--md-on-surface);
+  -webkit-tap-highlight-color: transparent;
 }
 
 @layer base {
   * {
     @apply border-outline-variant;
+  }
+
+  /* Prevent iOS zoom on input focus — ensure 16px min */
+  @media screen and (max-width: 639px) {
+    select, textarea {
+      font-size: 16px !important;
+    }
+  }
+
+  /* Faster taps on mobile — remove 300ms delay */
+  a, button, [role="button"], input, select, textarea {
+    touch-action: manipulation;
   }
 }
 

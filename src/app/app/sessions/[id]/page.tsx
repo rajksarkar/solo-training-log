@@ -420,7 +420,7 @@ export default function SessionLogPage() {
               {isStrength(se.exercise.category) ? (
                 <div className="space-y-2">
                   {/* Column headers */}
-                  <div className="grid grid-cols-[2rem_1fr_1fr_4rem] sm:grid-cols-[2.5rem_1fr_1fr_5rem] gap-2">
+                  <div className="grid grid-cols-[1.5rem_1fr_1fr_3.5rem] sm:grid-cols-[2.5rem_1fr_1fr_5rem] gap-2">
                     <span className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Set</span>
                     <span className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Reps</span>
                     <span className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Weight</span>
@@ -430,7 +430,7 @@ export default function SessionLogPage() {
                   {(localLogs[se.id] ?? []).map((log) => (
                     <div
                       key={`${log.setIndex}`}
-                      className="grid grid-cols-[2rem_1fr_1fr_4rem] sm:grid-cols-[2.5rem_1fr_1fr_5rem] gap-2 items-center"
+                      className="grid grid-cols-[1.5rem_1fr_1fr_3.5rem] sm:grid-cols-[2.5rem_1fr_1fr_5rem] gap-2 items-center"
                     >
                       <span className="text-sm font-medium text-on-surface-variant text-center">{log.setIndex + 1}</span>
                       <Input
