@@ -43,9 +43,18 @@ function parseCSVLine(line: string): string[] {
   return fields;
 }
 
-// Parse exercise data like "10, 10, 10 rep x 95, 95, 95 pound"
-// or "30, 30, 30 second x 0, 0, 0 pound"
-// or "10 rep x  "
+// Parse exercise data - handles many TH formats:
+// "10, 10, 10 rep x 95, 95, 95 pound"
+// "30, 30, 30 second x 0, 0, 0 pound"
+// "1800 time x 2 mile"        (run: 1800 sec, 2 miles)
+// "2.04 mile x 0 "            (run: 2.04 miles)
+// " time x  mile"             (run: no data logged)
+// "30:00 time x  "            (30 min bike)
+// "4  x  "                    (threshold: speed = 4)
+// "139  x  "                  (threshold: HR = 139)
+// "250 meter x  "             (rowing: 250m)
+// "676 meter x 31 "           (rowing: 676m, 31 strokes/watts)
+// "134 watt x  "              (rowing: 134 watts)
 function parseExerciseData(data: string): {
   sets: { reps: number | null; weight: number | null; unit: string; durationSec: number | null }[];
 } {
@@ -55,98 +64,150 @@ function parseExerciseData(data: string): {
 
   const cleaned = data.replace(/"/g, "").trim();
 
-  // Match pattern: "values unit x values unit"
-  const xSplit = cleaned.split(" x ");
-  if (xSplit.length < 2) {
+  // Split on " x " or " x" (end of string) — TH data often ends with "value x" with no right side
+  const xMatch = cleaned.match(/^(.+?)\s+x(?:\s+(.*))?$/);
+  if (!xMatch) {
     return { sets: [] };
   }
 
-  const leftPart = xSplit[0].trim();
-  const rightPart = xSplit.slice(1).join(" x ").trim();
+  const leftPart = xMatch[1].trim();
+  const rightPart = (xMatch[2] || "").trim();
 
-  // Parse left side - extract numbers and unit
-  // Pattern: "10, 10, 10 rep" or "30, 30, 30 second" or "20, 20, 20 foot"
-  const leftMatch = leftPart.match(/^([\d.,\s]+)\s*(rep|second|foot|minute|meter|yard|cal)s?$/i);
-  if (!leftMatch) {
-    return { sets: [] };
-  }
+  // Parse a side: extract numbers and unit
+  // Handles: "10, 10, 10 rep", "1800 time", "2.04 mile", "30:00 time", "4 ", " time", "139 ", "250 meter"
+  function parseSide(part: string): { values: number[]; unit: string } {
+    if (!part.trim()) return { values: [], unit: "" };
 
-  const leftValues = leftMatch[1]
-    .split(",")
-    .map((v) => v.trim())
-    .filter(Boolean)
-    .map(Number);
-  const leftUnit = leftMatch[2].toLowerCase();
-
-  // Parse right side - extract numbers and unit
-  // Pattern: "95, 95, 95 pound" or " " (empty)
-  let rightValues: number[] = [];
-  let rightUnit = "pound";
-
-  if (rightPart.trim()) {
-    const rightMatch = rightPart.match(/^([\d.,\s]*)\s*(pound|kg|kilogram)?s?\s*$/i);
-    if (rightMatch && rightMatch[1]?.trim()) {
-      rightValues = rightMatch[1]
-        .split(",")
-        .map((v) => v.trim())
-        .filter(Boolean)
-        .map(Number);
-      rightUnit = rightMatch[2]?.toLowerCase() || "pound";
+    // Handle MM:SS format like "30:00 time"
+    const timeColonMatch = part.match(/^(\d+):(\d+)\s*(time|minute|second)?s?\s*$/i);
+    if (timeColonMatch) {
+      const mins = parseInt(timeColonMatch[1]);
+      const secs = parseInt(timeColonMatch[2]);
+      return { values: [mins * 60 + secs], unit: "time" };
     }
+
+    // General pattern: optional numbers, optional unit
+    const match = part.match(/^([\d.,\s]*)\s*(rep|second|foot|minute|meter|yard|cal|time|mile|watt|pound|kg|kilogram)?s?\s*$/i);
+    if (!match) return { values: [], unit: "" };
+
+    const numStr = match[1]?.trim() || "";
+    const unit = (match[2] || "").toLowerCase();
+
+    if (!numStr) return { values: [], unit };
+
+    const values = numStr
+      .split(",")
+      .map((v) => v.trim())
+      .filter(Boolean)
+      .map(Number)
+      .filter((n) => !isNaN(n));
+
+    return { values, unit };
   }
 
-  const numSets = leftValues.length;
+  const left = parseSide(leftPart);
+  const right = parseSide(rightPart);
+
+  // If no values on either side, nothing to import
+  if (left.values.length === 0 && right.values.length === 0) {
+    return { sets: [] };
+  }
+
   const sets: { reps: number | null; weight: number | null; unit: string; durationSec: number | null }[] = [];
 
-  for (let i = 0; i < numSets; i++) {
-    const leftVal = leftValues[i];
-    const rightVal = rightValues[i] ?? rightValues[rightValues.length - 1] ?? null;
-    const weight = rightVal && !isNaN(rightVal) && rightVal > 0 ? rightVal : null;
-    const unit = rightUnit === "kg" || rightUnit === "kilogram" ? "kg" : "lb";
+  // Determine what the data represents based on units
+  const lu = left.unit;
+  const ru = right.unit;
 
-    if (leftUnit === "second") {
-      sets.push({
-        reps: null,
-        weight,
-        unit,
-        durationSec: isNaN(leftVal) ? null : leftVal,
-      });
-    } else if (leftUnit === "rep") {
-      sets.push({
-        reps: isNaN(leftVal) ? null : leftVal,
-        weight,
-        unit,
-        durationSec: null,
-      });
-    } else if (leftUnit === "foot" || leftUnit === "meter" || leftUnit === "yard") {
-      // Distance-based: store as duration placeholder
-      sets.push({
-        reps: null,
-        weight,
-        unit,
-        durationSec: isNaN(leftVal) ? null : leftVal,
-      });
-    } else if (leftUnit === "minute") {
-      sets.push({
-        reps: null,
-        weight: null,
-        unit: "lb",
-        durationSec: isNaN(leftVal) ? null : leftVal * 60,
-      });
-    } else if (leftUnit === "cal") {
-      sets.push({
-        reps: isNaN(leftVal) ? null : leftVal,
-        weight: null,
-        unit: "lb",
-        durationSec: null,
-      });
+  // Time-based exercises (runs, bikes, cardio)
+  if (lu === "time" || lu === "minute") {
+    const durSec = left.values[0] ?? null;
+    const duration = lu === "minute" && durSec ? durSec * 60 : durSec;
+    // Right side could be distance (mile, meter) or empty
+    const distance = right.values[0] ?? null;
+    sets.push({
+      reps: null,
+      weight: null,
+      unit: "lb",
+      durationSec: duration,
+    });
+    // Store distance as a note via reps if available
+    if (distance && distance > 0) {
+      sets[0].reps = Math.round(distance * 100) / 100 as any; // miles * 100 for precision
+    }
+    return { sets };
+  }
+
+  // Distance on left (e.g. "2.04 mile x 0")
+  if (lu === "mile") {
+    const miles = left.values[0] ?? null;
+    const timeSec = right.values[0] ?? null;
+    sets.push({
+      reps: null,
+      weight: null,
+      unit: "lb",
+      durationSec: timeSec && timeSec > 0 ? timeSec : null,
+    });
+    if (miles && miles > 0) {
+      sets[0].reps = Math.round(miles * 100) / 100 as any;
+    }
+    return { sets };
+  }
+
+  // Meter-based (rowing)
+  if (lu === "meter") {
+    const meters = left.values[0] ?? null;
+    sets.push({
+      reps: null,
+      weight: null,
+      unit: "lb",
+      durationSec: meters, // store meters as duration for display
+    });
+    return { sets };
+  }
+
+  // Watt-based (rowing power)
+  if (lu === "watt") {
+    const watts = left.values[0] ?? null;
+    sets.push({
+      reps: watts ? Math.round(watts) : null,
+      weight: null,
+      unit: "lb",
+      durationSec: null,
+    });
+    return { sets };
+  }
+
+  // Plain numbers without units (threshold speed, HR, etc.)
+  if (!lu && left.values.length > 0) {
+    const val = left.values[0];
+    sets.push({
+      reps: val ? Math.round(val * 10) / 10 as any : null,
+      weight: null,
+      unit: "lb",
+      durationSec: null,
+    });
+    return { sets };
+  }
+
+  // Standard rep/weight exercises
+  const numSets = left.values.length;
+  for (let i = 0; i < numSets; i++) {
+    const leftVal = left.values[i];
+    const rightVal = right.values[i] ?? right.values[right.values.length - 1] ?? null;
+    const weight = rightVal && !isNaN(rightVal) && rightVal > 0 ? rightVal : null;
+    const weightUnit = ru === "kg" || ru === "kilogram" ? "kg" : "lb";
+
+    if (lu === "second") {
+      sets.push({ reps: null, weight, unit: weightUnit, durationSec: isNaN(leftVal) ? null : leftVal });
+    } else if (lu === "rep") {
+      sets.push({ reps: isNaN(leftVal) ? null : leftVal, weight, unit: weightUnit, durationSec: null });
+    } else if (lu === "foot" || lu === "yard") {
+      sets.push({ reps: null, weight, unit: weightUnit, durationSec: isNaN(leftVal) ? null : leftVal });
+    } else if (lu === "cal") {
+      sets.push({ reps: isNaN(leftVal) ? null : leftVal, weight: null, unit: "lb", durationSec: null });
     } else {
-      sets.push({
-        reps: isNaN(leftVal) ? null : leftVal,
-        weight,
-        unit,
-        durationSec: null,
-      });
+      sets.push({ reps: isNaN(leftVal) ? null : leftVal, weight, unit: weightUnit, durationSec: null });
     }
   }
 

@@ -12,7 +12,7 @@ export async function GET(
   }
 
   const { exerciseId } = await params;
-  const limit = 30;
+  const limit = 50;
 
   const exercise = await prisma.exercise.findFirst({
     where: {
@@ -31,7 +31,7 @@ export async function GET(
       session: { ownerId: session.user.id },
     },
     include: {
-      session: true,
+      session: { select: { id: true, title: true, date: true } },
       setLogs: { orderBy: { setIndex: "asc" } },
     },
     orderBy: { session: { date: "desc" } },
@@ -47,6 +47,13 @@ export async function GET(
     rpe: number | null;
   }[] = [];
 
+  const history: {
+    date: string;
+    sessionId: string;
+    sessionTitle: string;
+    sets: { reps: number | null; weight: number | null; unit: string; durationSec: number | null }[];
+  }[] = [];
+
   for (const se of sessionExercises) {
     const date = se.session.date.toISOString().slice(0, 10);
     let bestSet: { reps: number; weight: number; unit: string } | null = null;
@@ -54,7 +61,16 @@ export async function GET(
     let durationSec: number | null = null;
     let rpe: number | null = null;
 
+    const sets: { reps: number | null; weight: number | null; unit: string; durationSec: number | null }[] = [];
+
     for (const log of se.setLogs) {
+      sets.push({
+        reps: log.reps,
+        weight: log.weight ? Number(log.weight) : null,
+        unit: log.unit,
+        durationSec: log.durationSec,
+      });
+
       if (log.reps != null && log.weight != null) {
         const w = Number(log.weight);
         const r = log.reps;
@@ -77,6 +93,13 @@ export async function GET(
       durationSec: durationSec || null,
       rpe,
     });
+
+    history.push({
+      date,
+      sessionId: se.sessionId,
+      sessionTitle: se.session.title,
+      sets,
+    });
   }
 
   return NextResponse.json({
@@ -86,5 +109,6 @@ export async function GET(
       .filter((d) => d.bestSet != null)
       .slice(-10)
       .reverse(),
+    history,
   });
 }
