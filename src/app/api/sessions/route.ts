@@ -28,7 +28,10 @@ export async function GET(request: Request) {
     where,
     include: {
       exercises: {
-        include: { exercise: true },
+        include: {
+          exercise: true,
+          setLogs: { orderBy: { setIndex: "asc" } },
+        },
         orderBy: { order: "asc" },
       },
     },

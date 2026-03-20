@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search, Plus } from "lucide-react";
+import Link from "next/link";
+import { Search, Plus, TrendingUp } from "lucide-react";
 import { CATEGORIES } from "@/lib/constants";
+import { ExerciseDetailDialog } from "@/components/exercise-detail-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FAB } from "@/components/ui/fab";
@@ -37,7 +39,8 @@ export default function ExercisesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string>("");
-  const [open, setOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
   const [form, setForm] = useState({
     name: "",
     category: "strength" as string,
@@ -80,7 +83,7 @@ export default function ExercisesPage() {
       }),
     });
     if (res.ok) {
-      setOpen(false);
+      setCreateOpen(false);
       setForm({ name: "", category: "strength", equipment: "", muscles: "", instructions: "" });
       fetchExercises();
     }
@@ -95,7 +98,7 @@ export default function ExercisesPage() {
             {exercises.length} exercise{exercises.length !== 1 ? "s" : ""} in library
           </p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
             <Button size="sm" className="hidden sm:inline-flex gap-1.5">
               <Plus className="h-3.5 w-3.5" />
@@ -201,37 +204,53 @@ export default function ExercisesPage() {
         </div>
       ) : (
         <div className="space-y-1.5">
-          {exercises.map((ex) => (
-            <div
-              key={ex.id}
-              className="flex items-center gap-3 p-3 rounded-xl bg-surface border border-border hover:border-primary/20 hover:bg-surface-high transition-all"
-            >
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm text-text truncate">{ex.name}</p>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-[10px] text-primary font-medium capitalize">
-                    {ex.category}
-                  </span>
-                  {Array.isArray(ex.muscles) && ex.muscles.length > 0 && (
-                    <span className="text-[10px] text-text-muted">
-                      {(ex.muscles as string[]).slice(0, 3).join(", ")}
+          {exercises.map((ex) => {
+            const muscles = Array.isArray(ex.muscles) ? ex.muscles as string[] : [];
+            return (
+              <button
+                key={ex.id}
+                type="button"
+                onClick={() => setSelectedExercise(ex)}
+                className="w-full text-left flex items-center gap-3 p-3.5 rounded-xl bg-surface border border-border hover:border-primary/30 hover:bg-surface-high active:scale-[0.99] transition-all"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm text-text truncate">{ex.name}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-[10px] text-primary font-medium capitalize">
+                      {ex.category}
                     </span>
-                  )}
+                    {muscles.length > 0 && (
+                      <span className="text-[10px] text-text-muted truncate">
+                        {muscles.slice(0, 3).join(", ")}
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-              {ex.ownerId && (
-                <span className="text-[9px] font-bold uppercase tracking-wider text-primary/60 bg-primary/5 px-2 py-1 rounded shrink-0">
-                  Custom
-                </span>
-              )}
-            </div>
-          ))}
+                <Link
+                  href={`/app/progress/${ex.id}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="shrink-0 p-2 rounded-lg text-text-muted hover:text-primary hover:bg-primary/10 transition-colors"
+                >
+                  <TrendingUp className="h-4 w-4" />
+                </Link>
+              </button>
+            );
+          })}
         </div>
       )}
 
-      <FAB onClick={() => setOpen(true)}>
+      <FAB onClick={() => setCreateOpen(true)}>
         <Plus />
       </FAB>
+
+      {/* Exercise Detail Dialog */}
+      {selectedExercise && (
+        <ExerciseDetailDialog
+          exercise={selectedExercise}
+          open={!!selectedExercise}
+          onOpenChange={(open) => !open && setSelectedExercise(null)}
+        />
+      )}
     </div>
   );
 }

@@ -30,7 +30,7 @@ import { CATEGORIES } from "@/lib/constants";
 type SessionExercise = {
   id: string;
   exercise: { name: string; category: string };
-  setLogs: { reps: number | null; weight: number | null; completed: boolean }[];
+  setLogs: { reps: number | null; weight: number | null; durationSec: number | null; completed: boolean }[];
 };
 
 type Session = {
@@ -139,8 +139,18 @@ export default function WeeklyTrainingPage() {
     (s) => s.date.slice(0, 10) === selectedDate
   );
 
-  // Map of date → has sessions
-  const sessionDates = new Set(sessions.map((s) => s.date.slice(0, 10)));
+  // Map of date → session status: "logged" (has set data) or "scheduled" (no data yet)
+  const sessionDateStatus = new Map<string, "logged" | "scheduled">();
+  for (const s of sessions) {
+    const dateKey = s.date.slice(0, 10);
+    const hasLoggedData = s.exercises?.some(
+      (ex) => ex.setLogs?.some((l) => l.reps != null || l.weight != null || l.durationSec != null)
+    );
+    const current = sessionDateStatus.get(dateKey);
+    if (hasLoggedData || current !== "logged") {
+      sessionDateStatus.set(dateKey, hasLoggedData ? "logged" : (current ?? "scheduled"));
+    }
+  }
 
   const isToday = formatDate(today) === selectedDate;
   const isCurrentWeek =
@@ -200,7 +210,7 @@ export default function WeeklyTrainingPage() {
           const dateStr = formatDate(date);
           const isSelected = dateStr === selectedDate;
           const isTodayDate = dateStr === formatDate(today);
-          const hasSession = sessionDates.has(dateStr);
+          const status = sessionDateStatus.get(dateStr);
 
           return (
             <button
@@ -224,13 +234,13 @@ export default function WeeklyTrainingPage() {
               }`}>
                 {date.getDate()}
               </span>
-              {/* Dot indicator */}
+              {/* Dot: bright yellow = logged data, gray = scheduled but no data */}
               <div className={`w-1.5 h-1.5 rounded-full mt-1 transition-colors ${
-                hasSession
-                  ? isSelected
-                    ? "bg-on-primary/60"
-                    : "bg-primary"
-                  : "bg-transparent"
+                status === "logged"
+                  ? isSelected ? "bg-on-primary" : "bg-primary"
+                  : status === "scheduled"
+                    ? isSelected ? "bg-on-primary/40" : "bg-text-muted"
+                    : "bg-transparent"
               }`} />
             </button>
           );
