@@ -1,28 +1,21 @@
 import type { Metadata, Viewport } from "next";
-import { DM_Sans, Instrument_Serif } from "next/font/google";
-import { SessionProvider } from "@/components/providers/session-provider";
+import { DM_Sans } from "next/font/google";
 import "./globals.css";
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-});
-
-const instrumentSerif = Instrument_Serif({
-  variable: "--font-instrument-serif",
-  subsets: ["latin"],
-  weight: "400",
+  weight: ["400", "500", "600", "700", "800"],
 });
 
 export const metadata: Metadata = {
-  title: "Solo Training Log",
-  description: "Track your workouts, build training plans, and see progress",
+  title: "Solo Training",
+  description: "Your personal training log",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
-    title: "Training Log",
+    statusBarStyle: "black-translucent",
+    title: "Solo Training",
   },
 };
 
@@ -31,7 +24,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   viewportFit: "cover",
-  themeColor: "#1a2e22",
+  themeColor: "#0B0B0F",
 };
 
 export default function RootLayout({
@@ -41,8 +34,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${dmSans.variable} ${instrumentSerif.variable} font-sans antialiased grain`}>
-        <SessionProvider>{children}</SessionProvider>
+      <body className={`${dmSans.variable} font-sans antialiased`}>
+        {children}
       </body>
     </html>
   );

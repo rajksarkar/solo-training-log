@@ -28,7 +28,7 @@ export async function GET(request: Request) {
           where: {
             AND: [
               baseWhere,
-              { name: { contains: q, mode: "insensitive" } },
+              { name: { contains: q, mode: "insensitive" as const } },
             ],
           },
           orderBy: { name: "asc" },

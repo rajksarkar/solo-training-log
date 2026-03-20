@@ -2,18 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  Dumbbell,
-  FileText,
-  Calendar,
-} from "lucide-react";
+import { Calendar, Dumbbell, Clock, User } from "lucide-react";
 
 const nav = [
-  { href: "/app", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/app", label: "Training", icon: Calendar },
+  { href: "/app/history", label: "History", icon: Clock },
   { href: "/app/exercises", label: "Exercises", icon: Dumbbell },
-  { href: "/app/templates", label: "Templates", icon: FileText },
-  { href: "/app/sessions", label: "Sessions", icon: Calendar },
+  { href: "/app/profile", label: "Me", icon: User },
 ];
 
 export function MobileNav() {
@@ -25,21 +20,21 @@ export function MobileNav() {
   }
 
   return (
-    <nav className="sm:hidden border-t border-white/[0.06] px-3 py-2">
-      <div className="flex items-center gap-1">
+    <nav className="sm:hidden fixed bottom-0 inset-x-0 z-40 glass-dark border-t border-border pb-[env(safe-area-inset-bottom)]">
+      <div className="flex items-center">
         {nav.map((item) => {
           const active = isActive(item.href);
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full text-[11px] font-medium transition-all duration-200 ${
+              className={`flex-1 flex flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors ${
                 active
-                  ? "bg-white/15 text-white"
-                  : "text-white/50 hover:text-white/70 hover:bg-white/[0.06]"
+                  ? "text-primary"
+                  : "text-text-muted"
               }`}
             >
-              <item.icon className="h-3.5 w-3.5 shrink-0" />
+              <item.icon className={`h-5 w-5 ${active ? "stroke-[2.5]" : ""}`} />
               <span>{item.label}</span>
             </Link>
           );

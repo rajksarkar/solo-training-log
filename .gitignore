@@ -24,6 +24,10 @@
 prisma/dev.db
 prisma/dev.db-journal
 
+# train heroic data export
+th-data/
+*.zip
+
 # misc
 .DS_Store
 *.pem
