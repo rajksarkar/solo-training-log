@@ -67,6 +67,7 @@ type Session = {
   title: string;
   category: string;
   date: string;
+  notes: string | null;
   exercises: SessionExercise[];
 };
 
@@ -395,6 +396,13 @@ export default function SessionLogPage() {
         )}
       </div>
 
+      {/* Session Notes */}
+      {session.notes && (
+        <div className="rounded-xl bg-primary/5 border border-primary/15 px-3.5 py-3">
+          <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-line">{session.notes}</p>
+        </div>
+      )}
+
       {/* Exercise Cards */}
       <div className="space-y-3">
         {session.exercises.map((se, exIdx) => {
@@ -424,6 +432,9 @@ export default function SessionLogPage() {
                   >
                     {se.exercise.name}
                   </button>
+                  {se.notes && (
+                    <p className="text-xs text-primary/80 font-medium mt-0.5 truncate">{se.notes}</p>
+                  )}
                   <p className="text-sm text-text-secondary mt-0.5">
                     {completedCount}/{logs.length} completed
                   </p>

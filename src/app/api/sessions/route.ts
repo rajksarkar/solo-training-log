@@ -72,7 +72,7 @@ export async function POST(request: Request) {
           exerciseId: te.exerciseId,
           order: te.order,
           notes: te.defaultReps
-            ? `${te.defaultSets ?? ""}x${te.defaultReps} @ ${te.defaultWeight ?? ""}`
+            ? `${te.defaultSets ?? ""}×${te.defaultReps}${te.defaultWeight ? ` @ ${te.defaultWeight} lb` : ""}`
             : te.defaultDurationSec
               ? `${te.defaultDurationSec}s`
               : null,
