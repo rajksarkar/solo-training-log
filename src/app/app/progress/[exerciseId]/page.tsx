@@ -175,27 +175,27 @@ export default function ProgressPage() {
                     }}
                   />
                   {isStrength && (
-                    <>
-                      <Line
-                        type="monotone"
-                        dataKey="weight"
-                        stroke="#E8B630"
-                        strokeWidth={2.5}
-                        dot={{ r: 3, fill: "#E8B630" }}
-                        activeDot={{ r: 5, fill: "#E8B630" }}
-                        name="Best weight"
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="volume"
-                        stroke="#8E8E93"
-                        strokeWidth={1.5}
-                        dot={{ r: 2, fill: "#8E8E93" }}
-                        activeDot={{ r: 4, fill: "#8E8E93" }}
-                        name="Volume"
-                        strokeDasharray="4 2"
-                      />
-                    </>
+                    <Line
+                      type="monotone"
+                      dataKey="weight"
+                      stroke="#E8B630"
+                      strokeWidth={2.5}
+                      dot={{ r: 3, fill: "#E8B630" }}
+                      activeDot={{ r: 5, fill: "#E8B630" }}
+                      name="Best weight"
+                    />
+                  )}
+                  {isStrength && (
+                    <Line
+                      type="monotone"
+                      dataKey="volume"
+                      stroke="#8E8E93"
+                      strokeWidth={1.5}
+                      dot={{ r: 2, fill: "#8E8E93" }}
+                      activeDot={{ r: 4, fill: "#8E8E93" }}
+                      name="Volume"
+                      strokeDasharray="4 2"
+                    />
                   )}
                   {isCardioLike && (
                     <Line
