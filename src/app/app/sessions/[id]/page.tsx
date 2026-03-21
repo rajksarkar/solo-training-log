@@ -411,10 +411,10 @@ export default function SessionLogPage() {
                   {exIdx + 1}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm text-text truncate">
+                  <p className="font-semibold text-[15px] text-text truncate">
                     {se.exercise.name}
                   </p>
-                  <p className="text-[10px] text-text-secondary mt-0.5">
+                  <p className="text-xs text-text-secondary mt-0.5">
                     {completedCount}/{logs.length} completed
                   </p>
                 </div>
@@ -443,10 +443,10 @@ export default function SessionLogPage() {
                     /* STRENGTH: Reps / Weight / Unit / Complete */
                     <div className="space-y-2 mt-3">
                       <div className="grid grid-cols-[1.2rem_1fr_1fr_2.5rem_1.5rem_1.5rem] gap-1.5 px-0.5">
-                        <span className="text-[9px] font-bold uppercase text-text-muted">#</span>
-                        <span className="text-[9px] font-bold uppercase text-text-muted">Reps</span>
-                        <span className="text-[9px] font-bold uppercase text-text-muted">Weight</span>
-                        <span className="text-[9px] font-bold uppercase text-text-muted">Unit</span>
+                        <span className="text-[10px] font-bold uppercase text-text-muted">#</span>
+                        <span className="text-[10px] font-bold uppercase text-text-muted">Reps</span>
+                        <span className="text-[10px] font-bold uppercase text-text-muted">Weight</span>
+                        <span className="text-[10px] font-bold uppercase text-text-muted">Unit</span>
                         <span />
                         <span />
                       </div>
@@ -475,7 +475,7 @@ export default function SessionLogPage() {
                     /* METRIC: single value input (HR, speed, watts) */
                     <div className="space-y-2 mt-3">
                       <div className="grid grid-cols-[1fr_1.5rem] gap-2 px-0.5">
-                        <span className="text-[9px] font-bold uppercase text-text-muted">{getMetricLabel(se.exercise.name)}</span>
+                        <span className="text-[10px] font-bold uppercase text-text-muted">{getMetricLabel(se.exercise.name)}</span>
                         <span />
                       </div>
                       {logs.map((log) => (
@@ -493,8 +493,8 @@ export default function SessionLogPage() {
                     /* CARDIO: Duration / RPE / Complete */
                     <div className="space-y-2 mt-3">
                       <div className="grid grid-cols-[1fr_1fr_1.5rem] gap-2">
-                        <span className="text-[9px] font-bold uppercase text-text-muted">Duration (sec)</span>
-                        <span className="text-[9px] font-bold uppercase text-text-muted">RPE (1-10)</span>
+                        <span className="text-[10px] font-bold uppercase text-text-muted">Duration (sec)</span>
+                        <span className="text-[10px] font-bold uppercase text-text-muted">RPE (1-10)</span>
                         <span />
                       </div>
                       {logs.map((log) => (
@@ -513,8 +513,8 @@ export default function SessionLogPage() {
                     /* BODYWEIGHT: Reps (optional) + Complete circle */
                     <div className="space-y-2 mt-3">
                       <div className="grid grid-cols-[1.2rem_1fr_1.5rem] gap-2 px-0.5">
-                        <span className="text-[9px] font-bold uppercase text-text-muted">#</span>
-                        <span className="text-[9px] font-bold uppercase text-text-muted">Reps / Duration</span>
+                        <span className="text-[10px] font-bold uppercase text-text-muted">#</span>
+                        <span className="text-[10px] font-bold uppercase text-text-muted">Reps / Duration</span>
                         <span />
                       </div>
                       {logs.map((log) => (
