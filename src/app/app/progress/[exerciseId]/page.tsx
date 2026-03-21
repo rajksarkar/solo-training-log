@@ -22,6 +22,8 @@ type DataPoint = {
   volume: number;
   durationSec: number | null;
   rpe: number | null;
+  bestReps: number | null;
+  totalReps: number;
 };
 
 type ProgressData = {
@@ -72,18 +74,21 @@ export default function ProgressPage() {
   }
 
   const chartData = data.dataPoints
-    .filter((d) => d.bestSet != null || d.volume > 0 || d.durationSec != null)
+    .filter((d) => d.bestSet != null || d.volume > 0 || d.durationSec != null || d.bestReps != null)
     .map((d) => ({
       date: d.date,
       weight: d.bestSet?.weight ?? 0,
       volume: d.volume,
       duration: (d.durationSec ?? 0) / 60,
+      bestReps: d.bestReps ?? 0,
+      totalReps: d.totalReps ?? 0,
     }));
 
   const isStrength = data.exercise.category === "strength" || data.exercise.category === "plyometrics";
   const isCardioLike = ["cardio", "zone2", "pilates", "stretching"].includes(
     data.exercise.category
   );
+  const isRepsOnly = !isStrength && !isCardioLike && chartData.some((d) => d.bestReps > 0);
 
   return (
     <div className="space-y-5 animate-fade-up">
@@ -103,7 +108,7 @@ export default function ProgressPage() {
           >
             {data.exercise.name}
           </button>
-          <p className="text-xs text-primary font-medium capitalize">{data.exercise.category}</p>
+          <p className="text-sm text-primary font-medium capitalize">{data.exercise.category}</p>
         </div>
       </div>
 
@@ -121,14 +126,16 @@ export default function ProgressPage() {
           <div className="px-4 py-3 border-b border-border">
             <div className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-primary" />
-              <h2 className="font-bold text-sm text-text">Progress</h2>
+              <h2 className="font-bold text-base text-text">Progress</h2>
             </div>
-            <p className="text-[10px] text-text-muted mt-0.5">
+            <p className="text-xs text-text-muted mt-0.5">
               {isStrength
                 ? "Best set weight & volume over time"
                 : isCardioLike
                   ? "Duration (minutes) over time"
-                  : "Activity over time"}
+                  : isRepsOnly
+                    ? "Best reps per session over time"
+                    : "Activity over time"}
             </p>
           </div>
           <div className="p-4">
@@ -198,6 +205,17 @@ export default function ProgressPage() {
                       dot={{ r: 3, fill: "#E8B630" }}
                       activeDot={{ r: 5, fill: "#E8B630" }}
                       name="Duration (min)"
+                    />
+                  )}
+                  {isRepsOnly && (
+                    <Line
+                      type="monotone"
+                      dataKey="bestReps"
+                      stroke="#E8B630"
+                      strokeWidth={2.5}
+                      dot={{ r: 3, fill: "#E8B630" }}
+                      activeDot={{ r: 5, fill: "#E8B630" }}
+                      name="Best reps"
                     />
                   )}
                 </LineChart>

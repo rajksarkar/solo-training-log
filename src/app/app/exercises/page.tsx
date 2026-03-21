@@ -214,13 +214,13 @@ export default function ExercisesPage() {
                 className="w-full text-left flex items-center gap-3 p-3.5 rounded-xl bg-surface border border-border hover:border-primary/30 hover:bg-surface-high active:scale-[0.99] transition-all"
               >
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm text-text truncate">{ex.name}</p>
+                  <p className="font-semibold text-base text-text truncate">{ex.name}</p>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[10px] text-primary font-medium capitalize">
+                    <span className="text-xs text-primary font-medium capitalize">
                       {ex.category}
                     </span>
                     {muscles.length > 0 && (
-                      <span className="text-[10px] text-text-muted truncate">
+                      <span className="text-xs text-text-muted truncate">
                         {muscles.slice(0, 3).join(", ")}
                       </span>
                     )}

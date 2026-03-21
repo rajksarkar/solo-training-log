@@ -45,6 +45,8 @@ export async function GET(
     volume: number;
     durationSec: number | null;
     rpe: number | null;
+    bestReps: number | null;
+    totalReps: number;
   }[] = [];
 
   const history: {
@@ -60,16 +62,25 @@ export async function GET(
     let volume = 0;
     let durationSec: number | null = null;
     let rpe: number | null = null;
+    let bestReps: number | null = null;
+    let totalReps = 0;
 
     const sets: { reps: number | null; weight: number | null; unit: string; durationSec: number | null }[] = [];
 
     for (const log of se.setLogs) {
       sets.push({
         reps: log.reps,
-        weight: log.weight ? Number(log.weight) : null,
+        weight: log.weight != null ? Number(log.weight) : null,
         unit: log.unit,
         durationSec: log.durationSec,
       });
+
+      if (log.reps != null) {
+        totalReps += log.reps;
+        if (bestReps === null || log.reps > bestReps) {
+          bestReps = log.reps;
+        }
+      }
 
       if (log.reps != null && log.weight != null) {
         const w = Number(log.weight);
@@ -92,6 +103,8 @@ export async function GET(
       volume,
       durationSec: durationSec || null,
       rpe,
+      bestReps,
+      totalReps,
     });
 
     history.push({

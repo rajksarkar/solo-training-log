@@ -99,10 +99,10 @@ export default function HistoryPage() {
                         <Dumbbell className="h-4 w-4 text-primary" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm text-text truncate group-hover:text-primary transition-colors">
+                        <p className="font-semibold text-base text-text truncate group-hover:text-primary transition-colors">
                           {s.title}
                         </p>
-                        <p className="text-[11px] text-text-secondary mt-0.5">
+                        <p className="text-sm text-text-secondary mt-0.5">
                           {(() => {
                             const [y, m, d] = s.date.slice(0, 10).split("-").map(Number);
                             return new Date(y, m - 1, d).toLocaleDateString("en-US", {

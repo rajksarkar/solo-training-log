@@ -138,10 +138,10 @@ export function ExerciseDetailDialog({
             {/* Instructions */}
             {instructions && (
               <div className="rounded-xl bg-surface-high p-4">
-                <h4 className="text-[10px] font-bold uppercase tracking-wider text-text-muted mb-2">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-text-muted mb-2">
                   How to perform
                 </h4>
-                <p className="text-text-secondary text-sm whitespace-pre-line leading-relaxed">
+                <p className="text-text-secondary text-base whitespace-pre-line leading-relaxed">
                   {instructions}
                 </p>
               </div>
@@ -152,7 +152,7 @@ export function ExerciseDetailDialog({
               <div className="space-y-3">
                 {muscles.length > 0 && (
                   <div>
-                    <h4 className="text-[10px] font-bold uppercase tracking-wider text-text-muted mb-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-text-muted mb-2">
                       Muscles
                     </h4>
                     <div className="flex flex-wrap gap-1.5">
@@ -166,7 +166,7 @@ export function ExerciseDetailDialog({
                 )}
                 {equipment.length > 0 && (
                   <div>
-                    <h4 className="text-[10px] font-bold uppercase tracking-wider text-text-muted mb-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-text-muted mb-2">
                       Equipment
                     </h4>
                     <div className="flex flex-wrap gap-1.5">
@@ -214,7 +214,7 @@ export function ExerciseDetailDialog({
                   className="block p-3 rounded-xl bg-surface-high hover:bg-surface-highest transition-colors"
                 >
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-bold text-text">
+                    <span className="text-sm font-bold text-text">
                       {new Date(entry.date).toLocaleDateString("en-US", {
                         weekday: "short",
                         month: "short",
@@ -226,8 +226,8 @@ export function ExerciseDetailDialog({
                   {entry.sets.length > 0 ? (
                     <div className="flex flex-wrap gap-x-3 gap-y-1">
                       {entry.sets.map((s, j) => (
-                        <span key={j} className="text-xs text-text-secondary">
-                          {s.reps != null && s.weight != null
+                        <span key={j} className="text-sm text-text-secondary">
+                          {s.reps != null && s.weight != null && s.weight > 0
                             ? `${s.reps} x ${s.weight} ${s.unit}`
                             : s.reps != null
                               ? `${s.reps} reps`

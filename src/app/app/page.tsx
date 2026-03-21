@@ -26,7 +26,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CATEGORIES } from "@/lib/constants";
-import { ExerciseDetailDialog } from "@/components/exercise-detail-dialog";
 
 type SetLog = {
   reps: number | null;
@@ -224,7 +223,6 @@ export default function WeeklyTrainingPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [newOpen, setNewOpen] = useState(false);
-  const [selectedExercise, setSelectedExercise] = useState<SessionExercise["exercise"] | null>(null);
   const [form, setForm] = useState({
     title: "",
     category: "strength",
@@ -332,7 +330,7 @@ export default function WeeklyTrainingPage() {
           onClick={goToToday}
           className="text-center"
         >
-          <p className="text-sm font-bold text-text tracking-wide">
+          <p className="text-base font-bold text-text tracking-wide">
             {formatWeekRange(monday)}
           </p>
           {!isCurrentWeek && (
@@ -370,7 +368,7 @@ export default function WeeklyTrainingPage() {
                     : "text-text-secondary hover:bg-surface-high"
               }`}
             >
-              <span className={`text-[10px] font-semibold uppercase tracking-wider ${
+              <span className={`text-xs font-semibold uppercase tracking-wider ${
                 isSelected ? "text-on-primary/70" : ""
               }`}>
                 {DAY_NAMES[i]}
@@ -416,12 +414,9 @@ export default function WeeklyTrainingPage() {
             const isComplete = totalSets > 0 && completedSets === totalSets;
 
             return (
-              <div key={s.id} className="rounded-xl bg-surface border border-border overflow-hidden">
-                {/* Tappable header → navigates to session */}
-                <Link
-                  href={`/app/sessions/${s.id}`}
-                  className="flex items-start justify-between gap-3 p-4 pb-2 hover:bg-surface-high transition-colors"
-                >
+              <Link key={s.id} href={`/app/sessions/${s.id}`} className="block rounded-xl bg-surface border border-border overflow-hidden hover:border-primary/30 transition-all">
+                {/* Card header */}
+                <div className="flex items-start justify-between gap-3 p-4 pb-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       {isComplete && (
@@ -431,7 +426,7 @@ export default function WeeklyTrainingPage() {
                         {s.title}
                       </h3>
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-text-secondary">
+                    <div className="flex items-center gap-3 text-sm text-text-secondary">
                       <span className="capitalize">{s.category}</span>
                       {exerciseCount > 0 && (
                         <>
@@ -448,40 +443,35 @@ export default function WeeklyTrainingPage() {
                     </div>
                   </div>
                   <Dumbbell className="h-5 w-5 text-text-muted shrink-0" />
-                </Link>
+                </div>
 
-                {/* Exercise list — each exercise tappable for detail */}
+                {/* Exercise list preview */}
                 {s.exercises && s.exercises.length > 0 && (
                   <div className="px-4 pb-3 space-y-1.5">
                     {s.exercises.slice(0, 5).map((ex) => {
                       const summary = summarizeExercise(ex);
                       return (
-                        <button
+                        <div
                           key={ex.id}
-                          type="button"
-                          onClick={() => setSelectedExercise(ex.exercise)}
-                          className="w-full flex items-center justify-between text-xs gap-2 py-1.5 px-2 -mx-2 rounded-lg hover:bg-surface-high active:bg-surface-highest transition-colors"
+                          className="flex items-center justify-between text-sm gap-2 py-1 px-2 -mx-2"
                         >
-                          <span className="text-text-secondary truncate text-left">
+                          <span className="text-text-secondary truncate">
                             {ex.exercise.name}
                           </span>
-                          <span className="text-primary shrink-0 tabular-nums font-medium">
+                          <span className="text-primary shrink-0 tabular-nums font-medium text-sm">
                             {summary}
                           </span>
-                        </button>
+                        </div>
                       );
                     })}
                     {s.exercises.length > 5 && (
-                      <Link
-                        href={`/app/sessions/${s.id}`}
-                        className="block text-[10px] text-text-muted hover:text-primary px-2 transition-colors"
-                      >
+                      <span className="block text-xs text-text-muted px-2">
                         +{s.exercises.length - 5} more
-                      </Link>
+                      </span>
                     )}
                   </div>
                 )}
-              </div>
+              </Link>
             );
           })}
 
@@ -572,14 +562,6 @@ export default function WeeklyTrainingPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Exercise Detail Dialog */}
-      {selectedExercise && (
-        <ExerciseDetailDialog
-          exercise={selectedExercise}
-          open={!!selectedExercise}
-          onOpenChange={(open) => !open && setSelectedExercise(null)}
-        />
-      )}
     </div>
   );
 }

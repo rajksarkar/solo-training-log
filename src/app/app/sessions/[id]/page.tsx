@@ -31,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ExerciseDetailDialog } from "@/components/exercise-detail-dialog";
 
 type SetLog = {
   id?: string;
@@ -53,6 +54,10 @@ type SessionExercise = {
     id: string;
     name: string;
     category: string;
+    instructions?: string;
+    equipment?: string[] | unknown;
+    muscles?: string[] | unknown;
+    youtubeId?: string | null;
   };
   setLogs: SetLog[];
 };
@@ -158,6 +163,7 @@ export default function SessionLogPage() {
   const [localLogs, setLocalLogs] = useState<Record<string, SetLog[]>>({});
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [expandedExercises, setExpandedExercises] = useState<Set<string>>(new Set());
+  const [selectedExercise, setSelectedExercise] = useState<SessionExercise["exercise"] | null>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localLogsRef = useRef(localLogs);
   localLogsRef.current = localLogs;
@@ -356,13 +362,13 @@ export default function SessionLogPage() {
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <div className="flex-1 min-w-0">
-          <h1 className="text-lg font-bold text-text truncate">{session.title}</h1>
+          <h1 className="text-xl font-bold text-text truncate">{session.title}</h1>
           <div className="flex items-center gap-2 mt-0.5">
-            <span className="text-xs text-text-secondary">
+            <span className="text-sm text-text-secondary">
               {formatSessionDate(session.date)}
             </span>
             <span className="text-text-muted">·</span>
-            <span className="text-xs text-primary font-medium capitalize">
+            <span className="text-sm text-primary font-medium capitalize">
               {session.category}
             </span>
           </div>
@@ -411,10 +417,14 @@ export default function SessionLogPage() {
                   {exIdx + 1}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-[15px] text-text truncate">
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setSelectedExercise(se.exercise); }}
+                    className="font-semibold text-base text-text truncate hover:text-primary transition-colors text-left max-w-full block"
+                  >
                     {se.exercise.name}
-                  </p>
-                  <p className="text-xs text-text-secondary mt-0.5">
+                  </button>
+                  <p className="text-sm text-text-secondary mt-0.5">
                     {completedCount}/{logs.length} completed
                   </p>
                 </div>
@@ -443,10 +453,10 @@ export default function SessionLogPage() {
                     /* STRENGTH: Reps / Weight / Unit / Complete */
                     <div className="space-y-2 mt-3">
                       <div className="grid grid-cols-[1.2rem_1fr_1fr_2.5rem_1.5rem_1.5rem] gap-1.5 px-0.5">
-                        <span className="text-[10px] font-bold uppercase text-text-muted">#</span>
-                        <span className="text-[10px] font-bold uppercase text-text-muted">Reps</span>
-                        <span className="text-[10px] font-bold uppercase text-text-muted">Weight</span>
-                        <span className="text-[10px] font-bold uppercase text-text-muted">Unit</span>
+                        <span className="text-xs font-bold uppercase text-text-muted">#</span>
+                        <span className="text-xs font-bold uppercase text-text-muted">Reps</span>
+                        <span className="text-xs font-bold uppercase text-text-muted">Weight</span>
+                        <span className="text-xs font-bold uppercase text-text-muted">Unit</span>
                         <span />
                         <span />
                       </div>
@@ -458,7 +468,7 @@ export default function SessionLogPage() {
                           <Input type="number" step="0.5" placeholder="--" inputMode="decimal" value={log.weight ?? ""} className="h-10 text-sm px-2"
                             onChange={(e) => { updateLog(se.id, log.setIndex, "weight", e.target.value ? parseFloat(e.target.value) : null); scheduleAutosave(); }} />
                           <Select value={log.unit} onValueChange={(v) => { updateLog(se.id, log.setIndex, "unit", v); scheduleAutosave(); }}>
-                            <SelectTrigger className="h-10 px-1 text-[10px]"><SelectValue /></SelectTrigger>
+                            <SelectTrigger className="h-10 px-1 text-xs"><SelectValue /></SelectTrigger>
                             <SelectContent><SelectItem value="lb">lb</SelectItem><SelectItem value="kg">kg</SelectItem></SelectContent>
                           </Select>
                           <button onClick={() => toggleComplete(se.id, log.setIndex)} className="flex items-center justify-center">
@@ -475,7 +485,7 @@ export default function SessionLogPage() {
                     /* METRIC: single value input (HR, speed, watts) */
                     <div className="space-y-2 mt-3">
                       <div className="grid grid-cols-[1fr_1.5rem] gap-2 px-0.5">
-                        <span className="text-[10px] font-bold uppercase text-text-muted">{getMetricLabel(se.exercise.name)}</span>
+                        <span className="text-xs font-bold uppercase text-text-muted">{getMetricLabel(se.exercise.name)}</span>
                         <span />
                       </div>
                       {logs.map((log) => (
@@ -493,8 +503,8 @@ export default function SessionLogPage() {
                     /* CARDIO: Duration / RPE / Complete */
                     <div className="space-y-2 mt-3">
                       <div className="grid grid-cols-[1fr_1fr_1.5rem] gap-2">
-                        <span className="text-[10px] font-bold uppercase text-text-muted">Duration (sec)</span>
-                        <span className="text-[10px] font-bold uppercase text-text-muted">RPE (1-10)</span>
+                        <span className="text-xs font-bold uppercase text-text-muted">Duration (sec)</span>
+                        <span className="text-xs font-bold uppercase text-text-muted">RPE (1-10)</span>
                         <span />
                       </div>
                       {logs.map((log) => (
@@ -513,8 +523,8 @@ export default function SessionLogPage() {
                     /* BODYWEIGHT: Reps (optional) + Complete circle */
                     <div className="space-y-2 mt-3">
                       <div className="grid grid-cols-[1.2rem_1fr_1.5rem] gap-2 px-0.5">
-                        <span className="text-[10px] font-bold uppercase text-text-muted">#</span>
-                        <span className="text-[10px] font-bold uppercase text-text-muted">Reps / Duration</span>
+                        <span className="text-xs font-bold uppercase text-text-muted">#</span>
+                        <span className="text-xs font-bold uppercase text-text-muted">Reps / Duration</span>
                         <span />
                       </div>
                       {logs.map((log) => (
@@ -581,6 +591,15 @@ export default function SessionLogPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Exercise Detail Dialog */}
+      {selectedExercise && (
+        <ExerciseDetailDialog
+          exercise={selectedExercise}
+          open={!!selectedExercise}
+          onOpenChange={(open) => !open && setSelectedExercise(null)}
+        />
+      )}
     </div>
   );
 }
