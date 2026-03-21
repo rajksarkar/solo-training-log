@@ -27,10 +27,21 @@ import {
 } from "@/components/ui/select";
 import { CATEGORIES } from "@/lib/constants";
 
+type SetLog = {
+  reps: number | null;
+  weight: number | null;
+  unit: string;
+  durationSec: number | null;
+  distanceMeters: number | null;
+  rpe: number | null;
+  completed: boolean;
+  notes: string | null;
+};
+
 type SessionExercise = {
   id: string;
   exercise: { name: string; category: string };
-  setLogs: { reps: number | null; weight: number | null; durationSec: number | null; completed: boolean }[];
+  setLogs: SetLog[];
 };
 
 type Session = {
@@ -69,6 +80,134 @@ function formatWeekRange(monday: Date): string {
   sunday.setDate(monday.getDate() + 6);
   const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
   return `${monday.toLocaleDateString("en-US", opts)} - ${sunday.toLocaleDateString("en-US", opts)}`;
+}
+
+function formatDuration(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return s > 0 ? `${m}:${s.toString().padStart(2, "0")}` : `${m}:00`;
+}
+
+function formatDistance(meters: number): string {
+  const miles = meters / 1609.34;
+  return miles >= 0.1 ? `${miles.toFixed(1)} mi` : `${meters} m`;
+}
+
+/** Summarize logged data for a single exercise across its sets. */
+function summarizeExercise(ex: SessionExercise): string {
+  const logs = ex.setLogs?.filter((l) => l.completed) ?? [];
+  if (logs.length === 0) {
+    const total = ex.setLogs?.length ?? 0;
+    return total > 0 ? `${total} sets (not logged)` : "no sets";
+  }
+
+  const name = ex.exercise.name.toLowerCase();
+  const category = ex.exercise.category;
+
+  // Special: metric exercises (HR, speed, watts, distance)
+  if (name.includes("heart rate") || name.includes("average hr")) {
+    const val = logs[0]?.reps;
+    return val != null ? `${val} bpm` : "—";
+  }
+  if (name.includes("average speed") || name.includes("speed")) {
+    const val = logs[0]?.reps;
+    return val != null ? `${val} mph` : "—";
+  }
+  if (name.includes("watt") || name.includes("power")) {
+    const val = logs[0]?.reps;
+    return val != null ? `${val}W` : "—";
+  }
+  if (name.includes("rower audit") || name.includes("rowing")) {
+    const dur = logs[0]?.durationSec;
+    return dur != null ? `${dur}m` : "—";
+  }
+  if (name === "run" || name === "walk") {
+    const dur = logs[0]?.durationSec;
+    const dist = logs[0]?.reps; // miles stored as reps
+    if (dur && dist) return `${formatDuration(dur)} / ${dist} mi`;
+    if (dur) return formatDuration(dur);
+    if (dist) return `${dist} mi`;
+    return "—";
+  }
+  if (name.includes("stationary bike") || name.includes("bike")) {
+    const dur = logs[0]?.durationSec;
+    return dur != null ? formatDuration(dur) : "—";
+  }
+
+  // Strength-style: has reps and/or weight
+  const hasWeight = logs.some((l) => l.weight != null && l.weight > 0);
+  const hasReps = logs.some((l) => l.reps != null && l.reps > 0);
+  const hasDuration = logs.some((l) => l.durationSec != null && l.durationSec > 0);
+  const hasDistance = logs.some((l) => l.distanceMeters != null && l.distanceMeters > 0);
+
+  // Strength: "3x10 @ 135 lb" or "3x10" or "3 sets @ 135 lb"
+  if ((category === "strength" || category === "plyometrics") && (hasReps || hasWeight)) {
+    const sets = logs.length;
+    // Check if all sets have same reps/weight for compact display
+    const repsValues = [...new Set(logs.map((l) => l.reps).filter(Boolean))];
+    const weightValues = [...new Set(logs.map((l) => l.weight).filter(Boolean))];
+    const unit = logs[0]?.unit ?? "lb";
+
+    let summary = "";
+    if (repsValues.length === 1 && hasReps) {
+      summary = `${sets}x${repsValues[0]}`;
+    } else if (hasReps) {
+      const repsList = logs.map((l) => l.reps ?? 0).join("/");
+      summary = repsList;
+    } else {
+      summary = `${sets} sets`;
+    }
+
+    if (weightValues.length === 1 && hasWeight) {
+      summary += ` @ ${weightValues[0]} ${unit}`;
+    } else if (hasWeight) {
+      const maxW = Math.max(...logs.map((l) => l.weight ?? 0));
+      summary += ` up to ${maxW} ${unit}`;
+    }
+    return summary;
+  }
+
+  // Cardio / zone2 / running: duration + distance
+  if (hasDuration && hasDistance) {
+    const totalDur = logs.reduce((a, l) => a + (l.durationSec ?? 0), 0);
+    const totalDist = logs.reduce((a, l) => a + (l.distanceMeters ?? 0), 0);
+    return `${formatDuration(totalDur)} / ${formatDistance(totalDist)}`;
+  }
+
+  if (hasDuration) {
+    const totalDur = logs.reduce((a, l) => a + (l.durationSec ?? 0), 0);
+    return formatDuration(totalDur);
+  }
+
+  if (hasDistance) {
+    const totalDist = logs.reduce((a, l) => a + (l.distanceMeters ?? 0), 0);
+    return formatDistance(totalDist);
+  }
+
+  // Reps-only (bodyweight, pilates, mobility, stretching)
+  if (hasReps) {
+    const sets = logs.length;
+    const repsValues = [...new Set(logs.map((l) => l.reps).filter(Boolean))];
+    if (repsValues.length === 1) {
+      return `${sets}x${repsValues[0]}`;
+    }
+    return logs.map((l) => l.reps ?? 0).join("/") + " reps";
+  }
+
+  // Check for data in notes (e.g., "HR: 136", "Speed: 4.1")
+  const notesWithData = logs.filter((l) => l.notes && l.notes.trim());
+  if (notesWithData.length > 0) {
+    return notesWithData[0].notes!.trim();
+  }
+
+  // RPE only
+  const hasRpe = logs.some((l) => l.rpe != null);
+  if (hasRpe) {
+    const avgRpe = logs.reduce((a, l) => a + (l.rpe ?? 0), 0) / logs.length;
+    return `RPE ${avgRpe.toFixed(0)}`;
+  }
+
+  return `${logs.length} sets`;
 }
 
 export default function WeeklyTrainingPage() {
@@ -300,19 +439,22 @@ export default function WeeklyTrainingPage() {
                       {/* Exercise preview */}
                       {s.exercises && s.exercises.length > 0 && (
                         <div className="mt-3 space-y-1">
-                          {s.exercises.slice(0, 4).map((ex) => (
-                            <div
-                              key={ex.id}
-                              className="flex items-center justify-between text-xs"
-                            >
-                              <span className="text-text-secondary truncate">
-                                {ex.exercise.name}
-                              </span>
-                              <span className="text-text-muted shrink-0 ml-2">
-                                {ex.setLogs?.length ?? 0} sets
-                              </span>
-                            </div>
-                          ))}
+                          {s.exercises.slice(0, 4).map((ex) => {
+                            const summary = summarizeExercise(ex);
+                            return (
+                              <div
+                                key={ex.id}
+                                className="flex items-center justify-between text-xs gap-2"
+                              >
+                                <span className="text-text-secondary truncate">
+                                  {ex.exercise.name}
+                                </span>
+                                <span className="text-text-muted shrink-0 tabular-nums">
+                                  {summary}
+                                </span>
+                              </div>
+                            );
+                          })}
                           {s.exercises.length > 4 && (
                             <p className="text-[10px] text-text-muted">
                               +{s.exercises.length - 4} more
