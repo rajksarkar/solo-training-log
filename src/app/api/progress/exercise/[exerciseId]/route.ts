@@ -47,6 +47,7 @@ export async function GET(
     rpe: number | null;
     bestReps: number | null;
     totalReps: number;
+    estimated1RM: number | null;
   }[] = [];
 
   const history: {
@@ -96,6 +97,16 @@ export async function GET(
       if (log.rpe != null) rpe = log.rpe;
     }
 
+    let bestE1RM = 0;
+    for (const log of se.setLogs) {
+      if (log.reps != null && log.weight != null && Number(log.weight) > 0 && log.reps > 0 && log.reps <= 12) {
+        const e1rm = Number(log.weight) * (1 + log.reps / 30);
+        if (e1rm > bestE1RM) {
+          bestE1RM = e1rm;
+        }
+      }
+    }
+
     dataPoints.push({
       date,
       sessionId: se.sessionId,
@@ -105,6 +116,7 @@ export async function GET(
       rpe,
       bestReps,
       totalReps,
+      estimated1RM: bestE1RM > 0 ? Math.round(bestE1RM * 10) / 10 : null,
     });
 
     history.push({
@@ -115,6 +127,11 @@ export async function GET(
     });
   }
 
+  const allTimeE1RM = dataPoints.reduce((max, d) => {
+    if (d.estimated1RM != null && d.estimated1RM > max) return d.estimated1RM;
+    return max;
+  }, 0);
+
   return NextResponse.json({
     exercise,
     dataPoints: dataPoints.reverse(),
@@ -123,5 +140,6 @@ export async function GET(
       .slice(-10)
       .reverse(),
     history,
+    allTimeE1RM: allTimeE1RM > 0 ? allTimeE1RM : null,
   });
 }

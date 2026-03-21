@@ -5,10 +5,12 @@ import Link from "next/link";
 import {
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Plus,
   Dumbbell,
   CheckCircle2,
   Calendar,
+  BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CATEGORIES } from "@/lib/constants";
+import { CATEGORIES, VOLUME_LANDMARKS } from "@/lib/constants";
 
 type SetLog = {
   reps: number | null;
@@ -229,7 +231,35 @@ export default function WeeklyTrainingPage() {
     date: formatDate(today),
   });
 
+  const [volumeOpen, setVolumeOpen] = useState(false);
+  const [volumeData, setVolumeData] = useState<{
+    week: string;
+    sessionsCompleted: number;
+    totalSets: number;
+    byMuscle: { muscle: string; sets: number }[];
+  } | null>(null);
+  const [volumeLoading, setVolumeLoading] = useState(false);
+
   const weekDates = getWeekDates(monday);
+
+  const fetchVolume = useCallback(async () => {
+    setVolumeLoading(true);
+    try {
+      const mondayStr = formatDate(monday);
+      const res = await fetch(`/api/volume?week=${mondayStr}`);
+      if (res.ok) {
+        const data = await res.json();
+        setVolumeData(data);
+      }
+    } catch {
+      setVolumeData(null);
+    }
+    setVolumeLoading(false);
+  }, [monday]);
+
+  useEffect(() => {
+    fetchVolume();
+  }, [fetchVolume]);
 
   const fetchSessions = useCallback(async () => {
     setLoading(true);
@@ -510,6 +540,104 @@ export default function WeeklyTrainingPage() {
           </Button>
         </div>
       )}
+
+      {/* Weekly Volume */}
+      <div className="rounded-xl border border-border bg-surface overflow-hidden">
+        <button
+          onClick={() => setVolumeOpen((o) => !o)}
+          className="w-full flex items-center justify-between p-4 hover:bg-surface-high/50 transition-colors"
+        >
+          <div className="flex items-center gap-2.5">
+            <BarChart3 className="h-4.5 w-4.5 text-primary" />
+            <span className="font-bold text-text text-sm">Weekly Volume</span>
+            {!volumeLoading && volumeData && volumeData.sessionsCompleted > 0 && (
+              <span className="text-xs text-text-secondary">
+                {volumeData.sessionsCompleted} session{volumeData.sessionsCompleted !== 1 ? "s" : ""} &middot; {volumeData.totalSets} sets
+              </span>
+            )}
+          </div>
+          <ChevronDown
+            className={`h-4 w-4 text-text-muted transition-transform duration-200 ${
+              volumeOpen ? "rotate-180" : ""
+            }`}
+          />
+        </button>
+
+        {volumeOpen && (
+          <div className="px-4 pb-4 space-y-3 border-t border-border">
+            {volumeLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+              </div>
+            ) : !volumeData || volumeData.byMuscle.length === 0 ? (
+              <p className="text-sm text-text-muted py-4 text-center">
+                No strength sessions this week
+              </p>
+            ) : (
+              <div className="space-y-2.5 pt-3">
+                {volumeData.byMuscle.map(({ muscle, sets }) => {
+                  const landmarks = VOLUME_LANDMARKS[muscle];
+                  const mrv = landmarks?.mrv ?? 22;
+                  const mev = landmarks?.mev ?? 6;
+                  const mav = landmarks?.mav ?? 14;
+                  const pct = Math.min((sets / mrv) * 100, 100);
+                  const mevPct = (mev / mrv) * 100;
+                  const mavPct = (mav / mrv) * 100;
+
+                  let barColor = "bg-text-muted"; // below MEV — gray
+                  if (sets >= mev && sets <= mrv) barColor = "bg-primary"; // MEV to MRV — gold
+                  if (sets > mrv) barColor = "bg-error"; // above MRV — red
+
+                  return (
+                    <div key={muscle} className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-text-secondary capitalize">{muscle}</span>
+                        <span className="text-text tabular-nums font-medium text-xs">
+                          {sets} <span className="text-text-muted">/ {mrv}</span>
+                        </span>
+                      </div>
+                      <div className="relative h-2 rounded-full bg-surface-high overflow-hidden">
+                        {/* Fill bar */}
+                        <div
+                          className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 ${barColor}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                        {/* MEV marker */}
+                        {mev > 0 && (
+                          <div
+                            className="absolute top-0 bottom-0 w-px bg-text-muted/60"
+                            style={{ left: `${mevPct}%` }}
+                            title={`MEV: ${mev}`}
+                          />
+                        )}
+                        {/* MAV marker */}
+                        <div
+                          className="absolute top-0 bottom-0 w-px bg-text-secondary/40"
+                          style={{ left: `${mavPct}%` }}
+                          title={`MAV: ${mav}`}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Legend */}
+                <div className="flex items-center gap-4 pt-2 text-[10px] text-text-muted">
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-text-muted inline-block" /> &lt; MEV
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-primary inline-block" /> MEV–MRV
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-error inline-block" /> &gt; MRV
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Create Session Dialog */}
       <Dialog open={newOpen} onOpenChange={setNewOpen}>

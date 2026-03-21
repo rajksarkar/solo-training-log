@@ -24,6 +24,7 @@ type DataPoint = {
   rpe: number | null;
   bestReps: number | null;
   totalReps: number;
+  estimated1RM: number | null;
 };
 
 type ProgressData = {
@@ -38,6 +39,7 @@ type ProgressData = {
   };
   dataPoints: DataPoint[];
   recentPRs: DataPoint[];
+  allTimeE1RM: number | null;
 };
 
 export default function ProgressPage() {
@@ -47,6 +49,7 @@ export default function ProgressPage() {
   const [data, setData] = useState<ProgressData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showDetail, setShowDetail] = useState(false);
+  const [chartMode, setChartMode] = useState<"weight" | "e1rm">("weight");
 
   useEffect(() => {
     fetch(`/api/progress/exercise/${exerciseId}`)
@@ -82,6 +85,7 @@ export default function ProgressPage() {
       duration: (d.durationSec ?? 0) / 60,
       bestReps: d.bestReps ?? 0,
       totalReps: d.totalReps ?? 0,
+      estimated1RM: d.estimated1RM ?? 0,
     }));
 
   const hasWeightData = chartData.some((d) => d.weight > 0);
@@ -110,6 +114,12 @@ export default function ProgressPage() {
             {data.exercise.name}
           </button>
           <p className="text-sm text-primary font-medium capitalize">{data.exercise.category}</p>
+          {data.allTimeE1RM && (
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-xs text-text-muted">Est. 1RM PR:</span>
+              <span className="text-sm font-bold text-primary">{data.allTimeE1RM} lb</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -125,13 +135,37 @@ export default function ProgressPage() {
       {chartData.length > 0 && (
         <div className="rounded-xl border border-border bg-surface overflow-hidden">
           <div className="px-4 py-3 border-b border-border">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-primary" />
-              <h2 className="font-bold text-base text-text">Progress</h2>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-primary" />
+                <h2 className="font-bold text-base text-text">Progress</h2>
+              </div>
+              {isStrength && (
+                <div className="flex items-center gap-1 bg-surface-high rounded-lg p-1">
+                  <button
+                    onClick={() => setChartMode("weight")}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                      chartMode === "weight" ? "bg-primary text-bg" : "text-text-secondary hover:text-text"
+                    }`}
+                  >
+                    Weight
+                  </button>
+                  <button
+                    onClick={() => setChartMode("e1rm")}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                      chartMode === "e1rm" ? "bg-primary text-bg" : "text-text-secondary hover:text-text"
+                    }`}
+                  >
+                    Est. 1RM
+                  </button>
+                </div>
+              )}
             </div>
             <p className="text-xs text-text-muted mt-0.5">
               {isStrength
-                ? "Best set weight & volume over time"
+                ? chartMode === "e1rm"
+                  ? "Estimated 1RM (Epley) over time"
+                  : "Best set weight & volume over time"
                 : isCardioLike
                   ? "Duration (minutes) over time"
                   : isRepsOnly
@@ -177,15 +211,15 @@ export default function ProgressPage() {
                   {isStrength && (
                     <Line
                       type="monotone"
-                      dataKey="weight"
+                      dataKey={chartMode === "e1rm" ? "estimated1RM" : "weight"}
                       stroke="#E8B630"
                       strokeWidth={2.5}
                       dot={{ r: 3, fill: "#E8B630" }}
                       activeDot={{ r: 5, fill: "#E8B630" }}
-                      name="Best weight"
+                      name={chartMode === "e1rm" ? "Est. 1RM" : "Best weight"}
                     />
                   )}
-                  {isStrength && (
+                  {isStrength && chartMode === "weight" && (
                     <Line
                       type="monotone"
                       dataKey="volume"

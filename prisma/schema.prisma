@@ -37,6 +37,7 @@ model User {
   sessionTemplates SessionTemplate[]
   sessions         Session[]
   bodyWeights      BodyWeight[]
+  bodyCompositions BodyComposition[]
 }
 
 model Exercise {
@@ -151,4 +152,22 @@ model BodyWeight {
 
   @@unique([ownerId, date])
   @@index([ownerId, date])
+}
+
+model BodyComposition {
+  id          String   @id @default(cuid())
+  ownerId     String
+  date        DateTime
+  scanType    String   @default("dexa")
+  weight      Float
+  bodyFatPct  Float
+  fatMass     Float?
+  leanMass    Float?
+  visceralFat Float?
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerId, date, scanType])
 }
