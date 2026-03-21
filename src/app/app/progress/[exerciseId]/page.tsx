@@ -84,11 +84,12 @@ export default function ProgressPage() {
       totalReps: d.totalReps ?? 0,
     }));
 
-  const isStrength = data.exercise.category === "strength" || data.exercise.category === "plyometrics";
+  const hasWeightData = chartData.some((d) => d.weight > 0);
+  const isStrength = (data.exercise.category === "strength" || data.exercise.category === "plyometrics") && hasWeightData;
   const isCardioLike = ["cardio", "zone2", "pilates", "stretching"].includes(
     data.exercise.category
   );
-  const isRepsOnly = !isStrength && !isCardioLike && chartData.some((d) => d.bestReps > 0);
+  const isRepsOnly = !isCardioLike && !hasWeightData && chartData.some((d) => d.bestReps > 0);
 
   return (
     <div className="space-y-5 animate-fade-up">
