@@ -355,12 +355,12 @@ export default function SessionLogPage() {
     <div className="space-y-4 animate-fade-up">
       {/* Header */}
       <div className="flex items-start gap-3">
-        <Link
-          href="/app"
+        <button
+          onClick={() => router.back()}
           className="mt-1 inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary hover:bg-surface-high hover:text-text transition-all shrink-0"
         >
           <ArrowLeft className="h-4 w-4" />
-        </Link>
+        </button>
         <div className="flex-1 min-w-0">
           <h1 className="text-xl font-bold text-text truncate">{session.title}</h1>
           <div className="flex items-center gap-2 mt-0.5">
