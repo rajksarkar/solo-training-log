@@ -416,72 +416,72 @@ export default function WeeklyTrainingPage() {
             const isComplete = totalSets > 0 && completedSets === totalSets;
 
             return (
-              <Link key={s.id} href={`/app/sessions/${s.id}`}>
-                <div className="group p-4 rounded-xl bg-surface border border-border hover:border-primary/30 hover:bg-surface-high transition-all duration-200">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        {isComplete && (
-                          <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
-                        )}
-                        <h3 className="font-bold text-text truncate group-hover:text-primary transition-colors">
-                          {s.title}
-                        </h3>
-                      </div>
-                      <div className="flex items-center gap-3 text-xs text-text-secondary">
-                        <span className="capitalize">{s.category}</span>
-                        {exerciseCount > 0 && (
-                          <>
-                            <span className="text-text-muted">|</span>
-                            <span>{exerciseCount} exercise{exerciseCount !== 1 ? "s" : ""}</span>
-                          </>
-                        )}
-                        {totalSets > 0 && (
-                          <>
-                            <span className="text-text-muted">|</span>
-                            <span>{completedSets}/{totalSets} sets</span>
-                          </>
-                        )}
-                      </div>
-                      {/* Exercise preview */}
-                      {s.exercises && s.exercises.length > 0 && (
-                        <div className="mt-3 space-y-1">
-                          {s.exercises.slice(0, 4).map((ex) => {
-                            const summary = summarizeExercise(ex);
-                            return (
-                              <div
-                                key={ex.id}
-                                className="flex items-center justify-between text-xs gap-2"
-                              >
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    setSelectedExercise(ex.exercise);
-                                  }}
-                                  className="text-text-secondary truncate text-left hover:text-primary active:text-primary-bright transition-colors underline decoration-text-muted/30 underline-offset-2"
-                                >
-                                  {ex.exercise.name}
-                                </button>
-                                <span className="text-text-muted shrink-0 tabular-nums">
-                                  {summary}
-                                </span>
-                              </div>
-                            );
-                          })}
-                          {s.exercises.length > 4 && (
-                            <p className="text-[10px] text-text-muted">
-                              +{s.exercises.length - 4} more
-                            </p>
-                          )}
-                        </div>
+              <div key={s.id} className="rounded-xl bg-surface border border-border overflow-hidden">
+                {/* Tappable header → navigates to session */}
+                <Link
+                  href={`/app/sessions/${s.id}`}
+                  className="flex items-start justify-between gap-3 p-4 pb-2 hover:bg-surface-high transition-colors"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      {isComplete && (
+                        <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
+                      )}
+                      <h3 className="font-bold text-text truncate">
+                        {s.title}
+                      </h3>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-text-secondary">
+                      <span className="capitalize">{s.category}</span>
+                      {exerciseCount > 0 && (
+                        <>
+                          <span className="text-text-muted">|</span>
+                          <span>{exerciseCount} exercise{exerciseCount !== 1 ? "s" : ""}</span>
+                        </>
+                      )}
+                      {totalSets > 0 && (
+                        <>
+                          <span className="text-text-muted">|</span>
+                          <span>{completedSets}/{totalSets} sets</span>
+                        </>
                       )}
                     </div>
-                    <Dumbbell className="h-5 w-5 text-text-muted group-hover:text-primary shrink-0 transition-colors" />
                   </div>
-                </div>
-              </Link>
+                  <Dumbbell className="h-5 w-5 text-text-muted shrink-0" />
+                </Link>
+
+                {/* Exercise list — each exercise tappable for detail */}
+                {s.exercises && s.exercises.length > 0 && (
+                  <div className="px-4 pb-3 space-y-1.5">
+                    {s.exercises.slice(0, 5).map((ex) => {
+                      const summary = summarizeExercise(ex);
+                      return (
+                        <button
+                          key={ex.id}
+                          type="button"
+                          onClick={() => setSelectedExercise(ex.exercise)}
+                          className="w-full flex items-center justify-between text-xs gap-2 py-1.5 px-2 -mx-2 rounded-lg hover:bg-surface-high active:bg-surface-highest transition-colors"
+                        >
+                          <span className="text-text-secondary truncate text-left">
+                            {ex.exercise.name}
+                          </span>
+                          <span className="text-primary shrink-0 tabular-nums font-medium">
+                            {summary}
+                          </span>
+                        </button>
+                      );
+                    })}
+                    {s.exercises.length > 5 && (
+                      <Link
+                        href={`/app/sessions/${s.id}`}
+                        className="block text-[10px] text-text-muted hover:text-primary px-2 transition-colors"
+                      >
+                        +{s.exercises.length - 5} more
+                      </Link>
+                    )}
+                  </div>
+                )}
+              </div>
             );
           })}
 
