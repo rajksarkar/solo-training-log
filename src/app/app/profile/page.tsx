@@ -227,9 +227,11 @@ export default function ProfilePage() {
     <div className="space-y-6 animate-fade-up">
       {/* Profile header */}
       <div className="text-center py-6">
-        <div className="w-20 h-20 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-4">
-          <Dumbbell className="h-10 w-10 text-primary" />
-        </div>
+        <img
+          src="/profile.jpg"
+          alt="Raj Sarkar"
+          className="w-20 h-20 rounded-2xl border border-primary/20 mx-auto mb-4 object-cover"
+        />
         <h1 className="text-xl font-bold text-text">Raj Sarkar</h1>
         <p className="text-sm text-text-secondary mt-0.5">
           raj.sarkar@gmail.com
