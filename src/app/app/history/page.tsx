@@ -39,10 +39,9 @@ export default function HistoryPage() {
       : true
   );
 
-  // Group by month
+  // Group by month (use date string directly to avoid UTC timezone shift)
   const grouped = filtered.reduce<Record<string, Session[]>>((acc, s) => {
-    const d = new Date(s.date);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const key = s.date.slice(0, 7); // "2026-03" from "2026-03-18T00:00:00.000Z"
     if (!acc[key]) acc[key] = [];
     acc[key].push(s);
     return acc;
@@ -104,11 +103,14 @@ export default function HistoryPage() {
                           {s.title}
                         </p>
                         <p className="text-[11px] text-text-secondary mt-0.5">
-                          {new Date(s.date).toLocaleDateString("en-US", {
-                            weekday: "short",
-                            month: "short",
-                            day: "numeric",
-                          })}
+                          {(() => {
+                            const [y, m, d] = s.date.slice(0, 10).split("-").map(Number);
+                            return new Date(y, m - 1, d).toLocaleDateString("en-US", {
+                              weekday: "short",
+                              month: "short",
+                              day: "numeric",
+                            });
+                          })()}
                           <span className="mx-1.5 text-text-muted">·</span>
                           <span className="capitalize">{s.category}</span>
                           {s.exercises?.length > 0 && (
