@@ -36,6 +36,7 @@ model User {
   exercises        Exercise[]
   sessionTemplates SessionTemplate[]
   sessions         Session[]
+  bodyWeights      BodyWeight[]
 }
 
 model Exercise {
@@ -135,4 +136,19 @@ model SetLog {
   @@unique([sessionExerciseId, setIndex])
   @@index([sessionExerciseId])
   @@map("set_logs")
+}
+
+model BodyWeight {
+  id        String     @id @default(cuid())
+  ownerId   String
+  date      DateTime
+  weight    Float
+  unit      WeightUnit @default(lb)
+  notes     String?
+  createdAt DateTime   @default(now())
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerId, date])
+  @@index([ownerId, date])
 }

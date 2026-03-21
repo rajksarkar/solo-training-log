@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ExerciseDetailDialog } from "@/components/exercise-detail-dialog";
+import { RestTimer, FloatingTimer } from "@/components/rest-timer";
 
 type SetLog = {
   id?: string;
@@ -152,6 +153,64 @@ function getMetricLabel(name: string): string {
   return "Value";
 }
 
+// Parse prescription notes like "4×6 @ 55 lb · RPE 8 · Rest 3 min"
+type Prescription = {
+  sets: number;
+  reps: number;
+  weight: number | null;
+  unit: "lb" | "kg";
+  rpe: number | null;
+  restSeconds: number | null;
+};
+
+function parsePrescription(notes: string | null): Prescription | null {
+  if (!notes) return null;
+
+  // Sets x Reps
+  const setsRepsMatch = notes.match(/(\d+)\s*[x×]\s*(\d+)/);
+  if (!setsRepsMatch) return null;
+
+  const sets = parseInt(setsRepsMatch[1], 10);
+  const reps = parseInt(setsRepsMatch[2], 10);
+
+  // Weight: "@ 55 lb" or "@ 100 kg"
+  let weight: number | null = null;
+  let unit: "lb" | "kg" = "lb";
+  const weightMatch = notes.match(/@\s*([\d.]+)\s*(lb|kg)/i);
+  if (weightMatch) {
+    weight = parseFloat(weightMatch[1]);
+    unit = weightMatch[2].toLowerCase() as "lb" | "kg";
+  }
+
+  // RPE: "RPE 8" or "RPE 7-8" (take first number)
+  let rpe: number | null = null;
+  const rpeMatch = notes.match(/RPE\s*(\d+)(?:-\d+)?/i);
+  if (rpeMatch) {
+    rpe = parseInt(rpeMatch[1], 10);
+  }
+
+  // Rest: "Rest 3 min" or "Rest 90 sec"
+  let restSeconds: number | null = null;
+  const restMatch = notes.match(/Rest\s+(\d+)\s*(min|sec|s)?/i);
+  if (restMatch) {
+    const restVal = parseInt(restMatch[1], 10);
+    const restUnit = restMatch[2]?.toLowerCase();
+    restSeconds = restUnit === "sec" || restUnit === "s" ? restVal : restVal * 60;
+  }
+
+  return { sets, reps, weight, unit, rpe, restSeconds };
+}
+
+function parseRestSeconds(notes: string | null): number | null {
+  if (!notes) return null;
+  const match = notes.match(/Rest\s+(\d+)\s*(min|sec|s|m)?/i);
+  if (!match) return null;
+  const val = parseInt(match[1]);
+  const unit = match[2]?.toLowerCase();
+  if (unit === "sec" || unit === "s") return val;
+  return val * 60; // default to minutes
+}
+
 export default function SessionLogPage() {
   const params = useParams();
   const router = useRouter();
@@ -165,6 +224,13 @@ export default function SessionLogPage() {
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [expandedExercises, setExpandedExercises] = useState<Set<string>>(new Set());
   const [selectedExercise, setSelectedExercise] = useState<SessionExercise["exercise"] | null>(null);
+  const [activeTimer, setActiveTimer] = useState<{
+    seId: string;
+    initialSeconds: number;
+    exerciseName: string;
+  } | null>(null);
+  const [floatingSeconds, setFloatingSeconds] = useState(0);
+  const floatingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localLogsRef = useRef(localLogs);
   localLogsRef.current = localLogs;
@@ -192,21 +258,36 @@ export default function SessionLogPage() {
           completed: l.completed ?? true,
         })
       );
-      logs[se.id] =
-        existing.length > 0
-          ? existing
-          : [
-              {
-                sessionExerciseId: se.id,
-                setIndex: 0,
-                reps: null,
-                weight: null,
-                unit: "lb",
-                durationSec: null,
-                rpe: null,
-                completed: false,
-              },
-            ];
+      if (existing.length > 0) {
+        logs[se.id] = existing;
+      } else {
+        const rx = parsePrescription(se.notes);
+        if (rx) {
+          logs[se.id] = Array.from({ length: rx.sets }, (_, i) => ({
+            sessionExerciseId: se.id,
+            setIndex: i,
+            reps: rx.reps,
+            weight: rx.weight,
+            unit: rx.unit,
+            durationSec: null,
+            rpe: null,
+            completed: false,
+          }));
+        } else {
+          logs[se.id] = [
+            {
+              sessionExerciseId: se.id,
+              setIndex: 0,
+              reps: null,
+              weight: null,
+              unit: "lb" as const,
+              durationSec: null,
+              rpe: null,
+              completed: false,
+            },
+          ];
+        }
+      }
     });
     setLocalLogs(logs);
     setExpandedExercises(new Set(data.exercises.map((e: SessionExercise) => e.id)));
@@ -239,6 +320,34 @@ export default function SessionLogPage() {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     };
   }, []);
+
+  // Track floating timer seconds for the FloatingTimer display
+  useEffect(() => {
+    if (activeTimer) {
+      setFloatingSeconds(activeTimer.initialSeconds);
+      floatingIntervalRef.current = setInterval(() => {
+        setFloatingSeconds((prev) => {
+          if (prev <= 1) {
+            if (floatingIntervalRef.current) clearInterval(floatingIntervalRef.current);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      setFloatingSeconds(0);
+      if (floatingIntervalRef.current) {
+        clearInterval(floatingIntervalRef.current);
+        floatingIntervalRef.current = null;
+      }
+    }
+    return () => {
+      if (floatingIntervalRef.current) {
+        clearInterval(floatingIntervalRef.current);
+        floatingIntervalRef.current = null;
+      }
+    };
+  }, [activeTimer]);
 
   async function deleteSession() {
     if (!confirm("Delete this workout and all logged sets?")) return;
@@ -312,8 +421,24 @@ export default function SessionLogPage() {
     const logs = localLogs[seId] ?? [];
     const log = logs.find((l) => l.setIndex === setIndex);
     if (log) {
+      const wasCompleted = log.completed;
       updateLog(seId, setIndex, "completed", !log.completed);
       scheduleAutosave();
+
+      // Start rest timer when completing a set (not when un-completing)
+      if (!wasCompleted) {
+        const se = session?.exercises.find((e) => e.id === seId);
+        if (se) {
+          const restSec = parseRestSeconds(se.notes);
+          if (restSec) {
+            setActiveTimer({
+              seId,
+              initialSeconds: restSec,
+              exerciseName: se.exercise.name,
+            });
+          }
+        }
+      }
     }
   }
 
@@ -414,6 +539,7 @@ export default function SessionLogPage() {
           return (
             <div
               key={se.id}
+              id={`exercise-${se.id}`}
               className="rounded-xl border border-border bg-surface overflow-hidden"
             >
               {/* Exercise header */}
@@ -558,6 +684,14 @@ export default function SessionLogPage() {
                       </button>
                     </div>
                   )}
+                  {activeTimer?.seId === se.id && (
+                    <RestTimer
+                      initialSeconds={activeTimer.initialSeconds}
+                      exerciseName={activeTimer.exerciseName}
+                      onComplete={() => setActiveTimer(null)}
+                      onDismiss={() => setActiveTimer(null)}
+                    />
+                  )}
                 </div>
               )}
             </div>
@@ -609,6 +743,23 @@ export default function SessionLogPage() {
           exercise={selectedExercise}
           open={!!selectedExercise}
           onOpenChange={(open) => !open && setSelectedExercise(null)}
+        />
+      )}
+
+      {/* Floating Rest Timer */}
+      {activeTimer && floatingSeconds > 0 && (
+        <FloatingTimer
+          seconds={floatingSeconds}
+          exerciseName={activeTimer.exerciseName}
+          onTap={() => {
+            setExpandedExercises((prev) => {
+              const next = new Set(prev);
+              next.add(activeTimer.seId);
+              return next;
+            });
+            document.getElementById(`exercise-${activeTimer.seId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+          }}
+          onDismiss={() => setActiveTimer(null)}
         />
       )}
     </div>
