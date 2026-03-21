@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CATEGORIES } from "@/lib/constants";
+import { ExerciseDetailDialog } from "@/components/exercise-detail-dialog";
 
 type SetLog = {
   reps: number | null;
@@ -40,7 +41,8 @@ type SetLog = {
 
 type SessionExercise = {
   id: string;
-  exercise: { name: string; category: string };
+  exerciseId: string;
+  exercise: { id: string; name: string; category: string; instructions?: string; equipment?: unknown; muscles?: unknown; youtubeId?: string | null };
   setLogs: SetLog[];
 };
 
@@ -222,6 +224,7 @@ export default function WeeklyTrainingPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [newOpen, setNewOpen] = useState(false);
+  const [selectedExercise, setSelectedExercise] = useState<SessionExercise["exercise"] | null>(null);
   const [form, setForm] = useState({
     title: "",
     category: "strength",
@@ -450,9 +453,17 @@ export default function WeeklyTrainingPage() {
                                 key={ex.id}
                                 className="flex items-center justify-between text-xs gap-2"
                               >
-                                <span className="text-text-secondary truncate">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setSelectedExercise(ex.exercise);
+                                  }}
+                                  className="text-text-secondary truncate text-left hover:text-primary active:text-primary-bright transition-colors underline decoration-text-muted/30 underline-offset-2"
+                                >
                                   {ex.exercise.name}
-                                </span>
+                                </button>
                                 <span className="text-text-muted shrink-0 tabular-nums">
                                   {summary}
                                 </span>
@@ -560,6 +571,15 @@ export default function WeeklyTrainingPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Exercise Detail Dialog */}
+      {selectedExercise && (
+        <ExerciseDetailDialog
+          exercise={selectedExercise}
+          open={!!selectedExercise}
+          onOpenChange={(open) => !open && setSelectedExercise(null)}
+        />
+      )}
     </div>
   );
 }
