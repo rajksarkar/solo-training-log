@@ -740,6 +740,7 @@ export default function SessionLogPage() {
           const logs = localLogs[se.id] ?? [];
           const inputType = getExerciseInputType(se.exercise.name, se.exercise.category, logs);
           const completedCount = logs.filter((l) => l.completed).length;
+          const exercisePR = prMap[se.exerciseId]?.bestSet;
 
           return (
             <div
@@ -756,13 +757,21 @@ export default function SessionLogPage() {
                   {exIdx + 1}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); setSelectedExercise(se.exercise); }}
-                    className="font-semibold text-base text-text truncate hover:text-primary transition-colors text-left max-w-full block"
-                  >
-                    {se.exercise.name}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setSelectedExercise(se.exercise); }}
+                      className="font-semibold text-base text-text truncate hover:text-primary transition-colors text-left"
+                    >
+                      {se.exercise.name}
+                    </button>
+                    {exercisePR && (
+                      <span className="inline-flex items-center gap-1 shrink-0 text-[11px] text-primary/70 font-semibold bg-primary/8 px-1.5 py-0.5 rounded-md">
+                        <Trophy className="h-3 w-3" />
+                        {exercisePR.weight} {exercisePR.unit} x{exercisePR.reps}
+                      </span>
+                    )}
+                  </div>
                   {se.notes && (
                     <p className="text-xs text-primary/80 font-medium mt-0.5 whitespace-pre-line leading-relaxed">{se.notes}</p>
                   )}
@@ -793,35 +802,39 @@ export default function SessionLogPage() {
                 <div className="px-3.5 pb-3.5 pt-0 border-t border-border">
                   {inputType === "strength" ? (
                     <div className="space-y-2 mt-3">
-                      <div className="grid grid-cols-[1.2rem_1fr_1fr_2.5rem_1.5rem_1.5rem_1.2rem] gap-1.5 px-0.5">
+                      <div className="grid grid-cols-[1.2rem_1fr_1fr_2.5rem_1.5rem_1.5rem] gap-1.5 px-0.5">
                         <span className="text-xs font-bold uppercase text-text-muted">#</span>
                         <span className="text-xs font-bold uppercase text-text-muted">Reps</span>
                         <span className="text-xs font-bold uppercase text-text-muted">Weight</span>
                         <span className="text-xs font-bold uppercase text-text-muted">Unit</span>
                         <span />
                         <span />
-                        <span />
                       </div>
                       {logs.map((log) => {
                         const isNewPR = log.completed && isPR(se.exerciseId, log.reps, log.weight, prMap);
                         return (
-                          <div key={log.setIndex} className={`grid grid-cols-[1.2rem_1fr_1fr_2.5rem_1.5rem_1.5rem_1.2rem] gap-1.5 items-center ${isNewPR ? "bg-primary/5 -mx-1 px-1 rounded-lg" : ""}`}>
-                            <span className="text-xs font-bold text-text-muted text-center">{log.setIndex + 1}</span>
-                            <Input type="number" placeholder="--" inputMode="numeric" value={log.reps ?? ""} className="h-10 text-sm px-2"
-                              onChange={(e) => { updateLog(se.id, log.setIndex, "reps", e.target.value ? parseInt(e.target.value, 10) : null); scheduleAutosave(); }} />
-                            <Input type="number" step="0.5" placeholder="--" inputMode="decimal" value={log.weight ?? ""} className="h-10 text-sm px-2"
-                              onChange={(e) => { updateLog(se.id, log.setIndex, "weight", e.target.value ? parseFloat(e.target.value) : null); scheduleAutosave(); }} />
-                            <Select value={log.unit} onValueChange={(v) => { updateLog(se.id, log.setIndex, "unit", v); scheduleAutosave(); }}>
-                              <SelectTrigger className="h-10 px-1 text-xs"><SelectValue /></SelectTrigger>
-                              <SelectContent><SelectItem value="lb">lb</SelectItem><SelectItem value="kg">kg</SelectItem></SelectContent>
-                            </Select>
-                            <button onClick={() => toggleComplete(se.id, log.setIndex)} className="flex items-center justify-center">
-                              {log.completed ? <CheckCircle2 className="h-5 w-5 text-success" /> : <Circle className="h-5 w-5 text-text-muted" />}
-                            </button>
-                            <button onClick={() => removeSet(se.id, log.setIndex)} className="p-0.5 text-text-muted hover:text-error"><X className="h-3.5 w-3.5" /></button>
-                            <div className="flex items-center justify-center">
-                              {isNewPR && <Trophy className="h-3.5 w-3.5 text-primary" />}
+                          <div key={log.setIndex} className="relative">
+                            <div className={`grid grid-cols-[1.2rem_1fr_1fr_2.5rem_1.5rem_1.5rem] gap-1.5 items-center ${isNewPR ? "bg-primary/5 rounded-lg -mx-1 px-1" : ""}`}>
+                              <span className="text-xs font-bold text-text-muted text-center">{log.setIndex + 1}</span>
+                              <Input type="number" placeholder="--" inputMode="numeric" value={log.reps ?? ""} className="h-10 text-sm px-2"
+                                onChange={(e) => { updateLog(se.id, log.setIndex, "reps", e.target.value ? parseInt(e.target.value, 10) : null); scheduleAutosave(); }} />
+                              <Input type="number" step="0.5" placeholder="--" inputMode="decimal" value={log.weight ?? ""} className="h-10 text-sm px-2"
+                                onChange={(e) => { updateLog(se.id, log.setIndex, "weight", e.target.value ? parseFloat(e.target.value) : null); scheduleAutosave(); }} />
+                              <Select value={log.unit} onValueChange={(v) => { updateLog(se.id, log.setIndex, "unit", v); scheduleAutosave(); }}>
+                                <SelectTrigger className="h-10 px-1 text-xs"><SelectValue /></SelectTrigger>
+                                <SelectContent><SelectItem value="lb">lb</SelectItem><SelectItem value="kg">kg</SelectItem></SelectContent>
+                              </Select>
+                              <button onClick={() => toggleComplete(se.id, log.setIndex)} className="flex items-center justify-center">
+                                {log.completed ? <CheckCircle2 className="h-5 w-5 text-success" /> : <Circle className="h-5 w-5 text-text-muted" />}
+                              </button>
+                              <button onClick={() => removeSet(se.id, log.setIndex)} className="p-0.5 text-text-muted hover:text-error"><X className="h-3.5 w-3.5" /></button>
                             </div>
+                            {isNewPR && (
+                              <div className="absolute -right-1 top-1/2 -translate-y-1/2 flex items-center gap-1 bg-primary/15 text-primary px-1.5 py-0.5 rounded-md">
+                                <Trophy className="h-3.5 w-3.5" />
+                                <span className="text-[10px] font-bold">PR</span>
+                              </div>
+                            )}
                           </div>
                         );
                       })}

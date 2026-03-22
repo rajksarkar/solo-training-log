@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   Calendar,
   BarChart3,
-  Trophy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -241,9 +240,6 @@ export default function WeeklyTrainingPage() {
   } | null>(null);
   const [volumeLoading, setVolumeLoading] = useState(false);
 
-  // PR data for exercise display
-  const [prMap, setPrMap] = useState<Record<string, { bestSet: { weight: number; reps: number; unit: string } | null }>>({});
-
   const weekDates = getWeekDates(monday);
 
   const fetchVolume = useCallback(async () => {
@@ -285,19 +281,6 @@ export default function WeeklyTrainingPage() {
     fetchSessions();
   }, [fetchSessions]);
 
-  // Fetch PRs for all exercises when sessions change
-  useEffect(() => {
-    const exerciseIds = new Set<string>();
-    sessions.forEach((s) =>
-      s.exercises?.forEach((ex) => exerciseIds.add(ex.exerciseId))
-    );
-    if (exerciseIds.size > 0) {
-      fetch(`/api/exercises/prs?exerciseIds=${[...exerciseIds].join(",")}`)
-        .then((r) => r.json())
-        .then(setPrMap)
-        .catch(() => {});
-    }
-  }, [sessions]);
 
   function prevWeek() {
     const prev = new Date(monday);
@@ -498,20 +481,13 @@ export default function WeeklyTrainingPage() {
                   <div className="px-4 pb-3 space-y-1.5">
                     {s.exercises.slice(0, 5).map((ex) => {
                       const summary = summarizeExercise(ex);
-                      const pr = prMap[ex.exerciseId]?.bestSet;
                       return (
                         <div
                           key={ex.id}
                           className="flex items-center justify-between text-sm gap-2 py-1 px-2 -mx-2"
                         >
-                          <span className="text-text-secondary truncate flex items-center gap-1.5">
+                          <span className="text-text-secondary truncate">
                             {ex.exercise.name}
-                            {pr && (
-                              <span className="inline-flex items-center gap-0.5 text-[10px] text-primary/70 font-medium shrink-0">
-                                <Trophy className="h-2.5 w-2.5" />
-                                {pr.weight}x{pr.reps}
-                              </span>
-                            )}
                           </span>
                           <span className="text-primary shrink-0 tabular-nums font-medium text-sm">
                             {summary}
