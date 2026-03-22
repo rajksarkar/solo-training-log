@@ -15,6 +15,10 @@ import {
   X,
   Circle,
   CheckCircle2,
+  Play,
+  Square,
+  Trophy,
+  CalendarDays,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,20 +73,41 @@ type Session = {
   category: string;
   date: string;
   notes: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
   exercises: SessionExercise[];
 };
 
 type Exercise = { id: string; name: string; category: string };
 
+type PRMap = Record<string, {
+  repMaxes: Record<number, { weight: number; unit: string }>;
+  bestSet: { weight: number; reps: number; unit: string } | null;
+}>;
+
 // Parse UTC date string without timezone shift
 function formatSessionDate(dateStr: string): string {
   const [y, m, d] = dateStr.slice(0, 10).split("-").map(Number);
-  const date = new Date(y, m - 1, d); // local date, not UTC
+  const date = new Date(y, m - 1, d);
   return date.toLocaleDateString("en-US", {
     weekday: "short",
     month: "short",
     day: "numeric",
   });
+}
+
+function formatElapsed(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function formatWeight(w: number): string {
+  if (w >= 1000000) return `${(w / 1000000).toFixed(1)}M`;
+  if (w >= 1000) return `${(w / 1000).toFixed(w >= 10000 ? 0 : 1)}k`;
+  return w.toLocaleString();
 }
 
 // Determine the best input layout for an exercise based on its name and actual data
@@ -93,7 +118,6 @@ function getExerciseInputType(
 ): "strength" | "cardio" | "metric" | "bodyweight" {
   const name = exerciseName.toLowerCase();
 
-  // Metric exercises: HR, speed, watts — show single value input
   if (
     name.includes("heart rate") ||
     name.includes("average speed") ||
@@ -103,7 +127,6 @@ function getExerciseInputType(
     return "metric";
   }
 
-  // Duration-based cardio: run, bike, rowing
   if (
     name === "run" ||
     name === "walk" ||
@@ -114,15 +137,12 @@ function getExerciseInputType(
     return "cardio";
   }
 
-  // Check if any set has weight data — if so, it's strength
   const hasWeight = logs.some((l) => l.weight != null && l.weight > 0);
   if (hasWeight) return "strength";
 
-  // Check if sets have duration data
   const hasDuration = logs.some((l) => l.durationSec != null && l.durationSec > 0);
   if (hasDuration) return "cardio";
 
-  // Bodyweight exercises: planks, pushups, etc. (reps only, or just completed)
   if (
     name.includes("plank") ||
     name.includes("push-up") ||
@@ -143,7 +163,6 @@ function getExerciseInputType(
   return "strength";
 }
 
-// Get the label for metric exercises
 function getMetricLabel(name: string): string {
   const n = name.toLowerCase();
   if (n.includes("heart rate")) return "Heart Rate (bpm)";
@@ -153,7 +172,6 @@ function getMetricLabel(name: string): string {
   return "Value";
 }
 
-// Parse prescription notes like "4×6 @ 55 lb · RPE 8 · Rest 3 min"
 type Prescription = {
   sets: number;
   reps: number;
@@ -165,15 +183,12 @@ type Prescription = {
 
 function parsePrescription(notes: string | null): Prescription | null {
   if (!notes) return null;
-
-  // Sets x Reps
   const setsRepsMatch = notes.match(/(\d+)\s*[x×]\s*(\d+)/);
   if (!setsRepsMatch) return null;
 
   const sets = parseInt(setsRepsMatch[1], 10);
   const reps = parseInt(setsRepsMatch[2], 10);
 
-  // Weight: "@ 55 lb" or "@ 100 kg"
   let weight: number | null = null;
   let unit: "lb" | "kg" = "lb";
   const weightMatch = notes.match(/@\s*([\d.]+)\s*(lb|kg)/i);
@@ -182,14 +197,12 @@ function parsePrescription(notes: string | null): Prescription | null {
     unit = weightMatch[2].toLowerCase() as "lb" | "kg";
   }
 
-  // RPE: "RPE 8" or "RPE 7-8" (take first number)
   let rpe: number | null = null;
   const rpeMatch = notes.match(/RPE\s*(\d+)(?:-\d+)?/i);
   if (rpeMatch) {
     rpe = parseInt(rpeMatch[1], 10);
   }
 
-  // Rest: "Rest 3 min" or "Rest 90 sec"
   let restSeconds: number | null = null;
   const restMatch = notes.match(/Rest\s+(\d+)\s*(min|sec|s)?/i);
   if (restMatch) {
@@ -208,7 +221,22 @@ function parseRestSeconds(notes: string | null): number | null {
   const val = parseInt(match[1]);
   const unit = match[2]?.toLowerCase();
   if (unit === "sec" || unit === "s") return val;
-  return val * 60; // default to minutes
+  return val * 60;
+}
+
+// Check if a set is a PR (personal record)
+function isPR(
+  exerciseId: string,
+  reps: number | null,
+  weight: number | null,
+  prMap: PRMap
+): boolean {
+  if (!reps || !weight || weight <= 0) return false;
+  const exercisePRs = prMap[exerciseId];
+  if (!exercisePRs) return true; // No history = first time = PR
+  const currentBest = exercisePRs.repMaxes[reps];
+  if (!currentBest) return true; // No history at this rep count = PR
+  return weight > currentBest.weight;
 }
 
 export default function SessionLogPage() {
@@ -235,6 +263,29 @@ export default function SessionLogPage() {
   const localLogsRef = useRef(localLogs);
   localLogsRef.current = localLogs;
 
+  // Session timer state
+  const [sessionTimerRunning, setSessionTimerRunning] = useState(false);
+  const [sessionStartedAt, setSessionStartedAt] = useState<Date | null>(null);
+  const [sessionElapsed, setSessionElapsed] = useState(0);
+  const sessionTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Summary dialog
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [summaryData, setSummaryData] = useState<{
+    duration: number;
+    totalWeight: number;
+    totalReps: number;
+    totalSets: number;
+    exerciseCount: number;
+  } | null>(null);
+
+  // PR data
+  const [prMap, setPrMap] = useState<PRMap>({});
+
+  // Move session date
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [moveDate, setMoveDate] = useState("");
+
   const fetchSession = useCallback(async () => {
     const res = await fetch(`/api/sessions/${id}`);
     if (!res.ok) {
@@ -243,6 +294,19 @@ export default function SessionLogPage() {
     }
     const data = await res.json();
     setSession(data);
+
+    // Restore timer state if session was started but not ended
+    if (data.startedAt && !data.endedAt) {
+      const started = new Date(data.startedAt);
+      setSessionStartedAt(started);
+      setSessionTimerRunning(true);
+      setSessionElapsed(Math.floor((Date.now() - started.getTime()) / 1000));
+    } else if (data.startedAt && data.endedAt) {
+      const started = new Date(data.startedAt);
+      const ended = new Date(data.endedAt);
+      setSessionStartedAt(started);
+      setSessionElapsed(Math.floor((ended.getTime() - started.getTime()) / 1000));
+    }
 
     const logs: Record<string, SetLog[]> = {};
     data.exercises.forEach((se: SessionExercise) => {
@@ -291,6 +355,15 @@ export default function SessionLogPage() {
     });
     setLocalLogs(logs);
     setExpandedExercises(new Set(data.exercises.map((e: SessionExercise) => e.id)));
+
+    // Fetch PRs for exercises in this session
+    const exerciseIds = data.exercises.map((e: SessionExercise) => e.exerciseId);
+    if (exerciseIds.length > 0) {
+      fetch(`/api/exercises/prs?exerciseIds=${exerciseIds.join(",")}`)
+        .then((r) => r.json())
+        .then(setPrMap)
+        .catch(() => {});
+    }
   }, [id, router]);
 
   useEffect(() => {
@@ -299,6 +372,74 @@ export default function SessionLogPage() {
       .then((r) => r.json())
       .then(setExercises);
   }, [fetchSession]);
+
+  // Session timer tick
+  useEffect(() => {
+    if (sessionTimerRunning && sessionStartedAt) {
+      sessionTimerRef.current = setInterval(() => {
+        setSessionElapsed(Math.floor((Date.now() - sessionStartedAt.getTime()) / 1000));
+      }, 1000);
+    }
+    return () => {
+      if (sessionTimerRef.current) {
+        clearInterval(sessionTimerRef.current);
+        sessionTimerRef.current = null;
+      }
+    };
+  }, [sessionTimerRunning, sessionStartedAt]);
+
+  async function startSession() {
+    const now = new Date();
+    setSessionStartedAt(now);
+    setSessionTimerRunning(true);
+    setSessionElapsed(0);
+    // Persist to server
+    await fetch(`/api/sessions/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ startedAt: now.toISOString(), endedAt: null }),
+    });
+  }
+
+  async function endSession() {
+    const now = new Date();
+    setSessionTimerRunning(false);
+    if (sessionTimerRef.current) {
+      clearInterval(sessionTimerRef.current);
+      sessionTimerRef.current = null;
+    }
+    // Persist to server
+    await fetch(`/api/sessions/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ endedAt: now.toISOString() }),
+    });
+
+    // Compute summary
+    const allLogs = Object.values(localLogsRef.current).flat();
+    const completedLogs = allLogs.filter((l) => l.completed);
+    let totalWeight = 0;
+    let totalReps = 0;
+    for (const log of completedLogs) {
+      if (log.reps != null) totalReps += log.reps;
+      if (log.reps != null && log.weight != null) {
+        totalWeight += log.reps * log.weight;
+      }
+    }
+
+    const duration = sessionStartedAt
+      ? Math.floor((now.getTime() - sessionStartedAt.getTime()) / 1000)
+      : sessionElapsed;
+
+    setSummaryData({
+      duration,
+      totalWeight: Math.round(totalWeight),
+      totalReps,
+      totalSets: completedLogs.length,
+      exerciseCount: session?.exercises.length ?? 0,
+    });
+    setSummaryOpen(true);
+  }
 
   const scheduleAutosave = useCallback(() => {
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
@@ -425,7 +566,6 @@ export default function SessionLogPage() {
       updateLog(seId, setIndex, "completed", !log.completed);
       scheduleAutosave();
 
-      // Start rest timer when completing a set (not when un-completing)
       if (!wasCompleted) {
         const se = session?.exercises.find((e) => e.id === seId);
         if (se) {
@@ -467,6 +607,19 @@ export default function SessionLogPage() {
     });
   }
 
+  async function handleMoveSession() {
+    if (!moveDate || !session) return;
+    const res = await fetch(`/api/sessions/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date: moveDate }),
+    });
+    if (res.ok) {
+      setMoveOpen(false);
+      fetchSession();
+    }
+  }
+
   if (!session) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -476,9 +629,50 @@ export default function SessionLogPage() {
   }
 
   const usedIds = new Set(session.exercises.map((e) => e.exerciseId));
+  const sessionEnded = !!session.endedAt;
+  const sessionStarted = !!session.startedAt || sessionTimerRunning;
 
   return (
     <div className="space-y-4 animate-fade-up">
+      {/* Session Timer Bar */}
+      <div className="rounded-xl border border-border bg-surface p-3">
+        {!sessionStarted && !sessionEnded ? (
+          <button
+            onClick={startSession}
+            className="w-full flex items-center justify-center gap-2 py-2 text-sm font-bold text-primary hover:bg-primary/5 rounded-lg transition-colors"
+          >
+            <Play className="h-4 w-4 fill-primary" />
+            Start Session
+          </button>
+        ) : sessionTimerRunning ? (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-2.5 h-2.5 rounded-full bg-success animate-pulse" />
+              <span className="text-2xl font-bold text-text tabular-nums">
+                {formatElapsed(sessionElapsed)}
+              </span>
+            </div>
+            <button
+              onClick={endSession}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-error/10 text-error text-sm font-bold hover:bg-error/20 transition-colors"
+            >
+              <Square className="h-3.5 w-3.5 fill-error" />
+              End Session
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm text-text-secondary">
+              <CheckCircle2 className="h-4 w-4 text-success" />
+              <span>Session completed</span>
+            </div>
+            <span className="text-sm font-bold text-text tabular-nums">
+              {formatElapsed(sessionElapsed)}
+            </span>
+          </div>
+        )}
+      </div>
+
       {/* Header */}
       <div className="flex items-start gap-3">
         <button
@@ -510,6 +704,17 @@ export default function SessionLogPage() {
         <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}>
           <Plus className="h-3.5 w-3.5 mr-1.5" />
           Add Exercise
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setMoveDate(session.date.slice(0, 10));
+            setMoveOpen(true);
+          }}
+        >
+          <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
+          Move
         </Button>
         <Button variant="ghost" size="icon" onClick={deleteSession} className="ml-auto">
           <Trash2 className="h-4 w-4 text-error" />
@@ -559,7 +764,7 @@ export default function SessionLogPage() {
                     {se.exercise.name}
                   </button>
                   {se.notes && (
-                    <p className="text-xs text-primary/80 font-medium mt-0.5 truncate">{se.notes}</p>
+                    <p className="text-xs text-primary/80 font-medium mt-0.5 whitespace-pre-line leading-relaxed">{se.notes}</p>
                   )}
                   <p className="text-sm text-text-secondary mt-0.5">
                     {completedCount}/{logs.length} completed
@@ -587,39 +792,44 @@ export default function SessionLogPage() {
               {expanded && (
                 <div className="px-3.5 pb-3.5 pt-0 border-t border-border">
                   {inputType === "strength" ? (
-                    /* STRENGTH: Reps / Weight / Unit / Complete */
                     <div className="space-y-2 mt-3">
-                      <div className="grid grid-cols-[1.2rem_1fr_1fr_2.5rem_1.5rem_1.5rem] gap-1.5 px-0.5">
+                      <div className="grid grid-cols-[1.2rem_1fr_1fr_2.5rem_1.5rem_1.5rem_1.2rem] gap-1.5 px-0.5">
                         <span className="text-xs font-bold uppercase text-text-muted">#</span>
                         <span className="text-xs font-bold uppercase text-text-muted">Reps</span>
                         <span className="text-xs font-bold uppercase text-text-muted">Weight</span>
                         <span className="text-xs font-bold uppercase text-text-muted">Unit</span>
                         <span />
                         <span />
+                        <span />
                       </div>
-                      {logs.map((log) => (
-                        <div key={log.setIndex} className="grid grid-cols-[1.2rem_1fr_1fr_2.5rem_1.5rem_1.5rem] gap-1.5 items-center">
-                          <span className="text-xs font-bold text-text-muted text-center">{log.setIndex + 1}</span>
-                          <Input type="number" placeholder="--" inputMode="numeric" value={log.reps ?? ""} className="h-10 text-sm px-2"
-                            onChange={(e) => { updateLog(se.id, log.setIndex, "reps", e.target.value ? parseInt(e.target.value, 10) : null); scheduleAutosave(); }} />
-                          <Input type="number" step="0.5" placeholder="--" inputMode="decimal" value={log.weight ?? ""} className="h-10 text-sm px-2"
-                            onChange={(e) => { updateLog(se.id, log.setIndex, "weight", e.target.value ? parseFloat(e.target.value) : null); scheduleAutosave(); }} />
-                          <Select value={log.unit} onValueChange={(v) => { updateLog(se.id, log.setIndex, "unit", v); scheduleAutosave(); }}>
-                            <SelectTrigger className="h-10 px-1 text-xs"><SelectValue /></SelectTrigger>
-                            <SelectContent><SelectItem value="lb">lb</SelectItem><SelectItem value="kg">kg</SelectItem></SelectContent>
-                          </Select>
-                          <button onClick={() => toggleComplete(se.id, log.setIndex)} className="flex items-center justify-center">
-                            {log.completed ? <CheckCircle2 className="h-5 w-5 text-success" /> : <Circle className="h-5 w-5 text-text-muted" />}
-                          </button>
-                          <button onClick={() => removeSet(se.id, log.setIndex)} className="p-0.5 text-text-muted hover:text-error"><X className="h-3.5 w-3.5" /></button>
-                        </div>
-                      ))}
+                      {logs.map((log) => {
+                        const isNewPR = log.completed && isPR(se.exerciseId, log.reps, log.weight, prMap);
+                        return (
+                          <div key={log.setIndex} className={`grid grid-cols-[1.2rem_1fr_1fr_2.5rem_1.5rem_1.5rem_1.2rem] gap-1.5 items-center ${isNewPR ? "bg-primary/5 -mx-1 px-1 rounded-lg" : ""}`}>
+                            <span className="text-xs font-bold text-text-muted text-center">{log.setIndex + 1}</span>
+                            <Input type="number" placeholder="--" inputMode="numeric" value={log.reps ?? ""} className="h-10 text-sm px-2"
+                              onChange={(e) => { updateLog(se.id, log.setIndex, "reps", e.target.value ? parseInt(e.target.value, 10) : null); scheduleAutosave(); }} />
+                            <Input type="number" step="0.5" placeholder="--" inputMode="decimal" value={log.weight ?? ""} className="h-10 text-sm px-2"
+                              onChange={(e) => { updateLog(se.id, log.setIndex, "weight", e.target.value ? parseFloat(e.target.value) : null); scheduleAutosave(); }} />
+                            <Select value={log.unit} onValueChange={(v) => { updateLog(se.id, log.setIndex, "unit", v); scheduleAutosave(); }}>
+                              <SelectTrigger className="h-10 px-1 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent><SelectItem value="lb">lb</SelectItem><SelectItem value="kg">kg</SelectItem></SelectContent>
+                            </Select>
+                            <button onClick={() => toggleComplete(se.id, log.setIndex)} className="flex items-center justify-center">
+                              {log.completed ? <CheckCircle2 className="h-5 w-5 text-success" /> : <Circle className="h-5 w-5 text-text-muted" />}
+                            </button>
+                            <button onClick={() => removeSet(se.id, log.setIndex)} className="p-0.5 text-text-muted hover:text-error"><X className="h-3.5 w-3.5" /></button>
+                            <div className="flex items-center justify-center">
+                              {isNewPR && <Trophy className="h-3.5 w-3.5 text-primary" />}
+                            </div>
+                          </div>
+                        );
+                      })}
                       <button onClick={() => addSet(se.id)} className="w-full py-2 text-xs font-semibold text-primary hover:bg-primary/5 rounded-lg transition-colors flex items-center justify-center gap-1.5">
                         <Plus className="h-3.5 w-3.5" /> Add Set
                       </button>
                     </div>
                   ) : inputType === "metric" ? (
-                    /* METRIC: single value input (HR, speed, watts) */
                     <div className="space-y-2 mt-3">
                       <div className="grid grid-cols-[1fr_1.5rem] gap-2 px-0.5">
                         <span className="text-xs font-bold uppercase text-text-muted">{getMetricLabel(se.exercise.name)}</span>
@@ -637,7 +847,6 @@ export default function SessionLogPage() {
                       ))}
                     </div>
                   ) : inputType === "cardio" ? (
-                    /* CARDIO: Duration / RPE / Complete */
                     <div className="space-y-2 mt-3">
                       <div className="grid grid-cols-[1fr_1fr_1.5rem] gap-2">
                         <span className="text-xs font-bold uppercase text-text-muted">Duration (sec)</span>
@@ -657,7 +866,6 @@ export default function SessionLogPage() {
                       ))}
                     </div>
                   ) : (
-                    /* BODYWEIGHT: Reps (optional) + Complete circle */
                     <div className="space-y-2 mt-3">
                       <div className="grid grid-cols-[1.2rem_1fr_1.5rem] gap-2 px-0.5">
                         <span className="text-xs font-bold uppercase text-text-muted">#</span>
@@ -734,6 +942,62 @@ export default function SessionLogPage() {
               <p className="py-8 text-center text-text-secondary text-sm">No matching exercises</p>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Move Session Dialog */}
+      <Dialog open={moveOpen} onOpenChange={setMoveOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Move Session</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs font-bold uppercase text-text-muted block mb-1.5">New Date</label>
+              <Input type="date" value={moveDate} onChange={(e) => setMoveDate(e.target.value)} />
+            </div>
+            <Button onClick={handleMoveSession} disabled={!moveDate} className="w-full">
+              Move to {moveDate ? formatSessionDate(moveDate) : "..."}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Session Summary Dialog */}
+      <Dialog open={summaryOpen} onOpenChange={setSummaryOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Session Complete!</DialogTitle>
+          </DialogHeader>
+          {summaryData && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl bg-surface-high p-4 text-center">
+                  <p className="text-2xl font-bold text-primary">{formatElapsed(summaryData.duration)}</p>
+                  <p className="text-[10px] text-text-muted uppercase tracking-wider mt-1">Duration</p>
+                </div>
+                <div className="rounded-xl bg-surface-high p-4 text-center">
+                  <p className="text-2xl font-bold text-text">{summaryData.exerciseCount}</p>
+                  <p className="text-[10px] text-text-muted uppercase tracking-wider mt-1">Exercises</p>
+                </div>
+                <div className="rounded-xl bg-surface-high p-4 text-center">
+                  <p className="text-2xl font-bold text-text">{summaryData.totalReps.toLocaleString()}</p>
+                  <p className="text-[10px] text-text-muted uppercase tracking-wider mt-1">Total Reps</p>
+                </div>
+                <div className="rounded-xl bg-surface-high p-4 text-center">
+                  <p className="text-2xl font-bold text-text">{formatWeight(summaryData.totalWeight)} lb</p>
+                  <p className="text-[10px] text-text-muted uppercase tracking-wider mt-1">Weight Lifted</p>
+                </div>
+              </div>
+              <div className="rounded-xl bg-surface-high p-4 text-center">
+                <p className="text-lg font-bold text-text">{summaryData.totalSets}</p>
+                <p className="text-[10px] text-text-muted uppercase tracking-wider mt-1">Completed Sets</p>
+              </div>
+              <Button onClick={() => setSummaryOpen(false)} className="w-full">
+                Done
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

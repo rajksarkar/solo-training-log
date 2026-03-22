@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Search, Plus, TrendingUp } from "lucide-react";
+import { Search, Plus, TrendingUp, Trophy } from "lucide-react";
 import { CATEGORIES } from "@/lib/constants";
 import { ExerciseDetailDialog } from "@/components/exercise-detail-dialog";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,7 @@ export default function ExercisesPage() {
     muscles: "",
     instructions: "",
   });
+  const [prMap, setPrMap] = useState<Record<string, { bestSet: { weight: number; reps: number; unit: string } | null }>>({});
 
   async function fetchExercises() {
     setLoading(true);
@@ -68,6 +69,14 @@ export default function ExercisesPage() {
   useEffect(() => {
     fetchExercises();
   }, [search, category]);
+
+  // Fetch PRs for all exercises
+  useEffect(() => {
+    fetch("/api/exercises/prs")
+      .then((r) => r.json())
+      .then(setPrMap)
+      .catch(() => {});
+  }, []);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -206,6 +215,7 @@ export default function ExercisesPage() {
         <div className="space-y-1.5">
           {exercises.map((ex) => {
             const muscles = Array.isArray(ex.muscles) ? ex.muscles as string[] : [];
+            const pr = prMap[ex.id]?.bestSet;
             return (
               <button
                 key={ex.id}
@@ -219,7 +229,13 @@ export default function ExercisesPage() {
                     <span className="text-xs text-primary font-medium capitalize">
                       {ex.category}
                     </span>
-                    {muscles.length > 0 && (
+                    {pr && (
+                      <span className="inline-flex items-center gap-1 text-xs text-primary/70 font-medium">
+                        <Trophy className="h-3 w-3" />
+                        {pr.weight} {pr.unit} x{pr.reps}
+                      </span>
+                    )}
+                    {muscles.length > 0 && !pr && (
                       <span className="text-xs text-text-muted truncate">
                         {muscles.slice(0, 3).join(", ")}
                       </span>

@@ -13,7 +13,10 @@ export const createSessionSchema = z.object({
   templateId: z.string().optional(),
 });
 
-export const updateSessionSchema = createSessionSchema.partial();
+export const updateSessionSchema = createSessionSchema.partial().extend({
+  startedAt: z.string().datetime().optional().nullable(),
+  endedAt: z.string().datetime().optional().nullable(),
+});
 
 export const addSessionExerciseSchema = z.object({
   exerciseId: z.string(),

@@ -68,6 +68,8 @@ export async function PATCH(
         ...(parsed.data.category !== undefined && { category: parsed.data.category }),
         ...(parsed.data.date !== undefined && { date: new Date(parsed.data.date) }),
         ...(parsed.data.notes !== undefined && { notes: parsed.data.notes }),
+        ...(parsed.data.startedAt !== undefined && { startedAt: parsed.data.startedAt ? new Date(parsed.data.startedAt) : null }),
+        ...(parsed.data.endedAt !== undefined && { endedAt: parsed.data.endedAt ? new Date(parsed.data.endedAt) : null }),
       },
       include: {
         exercises: {
