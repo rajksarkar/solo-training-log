@@ -319,7 +319,7 @@ export default function WeeklyTrainingPage() {
   for (const s of sessions) {
     const dateKey = s.date.slice(0, 10);
     const hasLoggedData = s.exercises?.some(
-      (ex) => ex.setLogs?.some((l) => l.reps != null || l.weight != null || l.durationSec != null)
+      (ex) => ex.setLogs?.some((l) => l.completed && (l.reps != null || l.weight != null || l.durationSec != null))
     );
     const current = sessionDateStatus.get(dateKey);
     if (hasLoggedData || current !== "logged") {
