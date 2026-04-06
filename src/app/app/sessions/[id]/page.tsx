@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/select";
 import { ExerciseDetailDialog } from "@/components/exercise-detail-dialog";
 import { RestTimer, FloatingTimer } from "@/components/rest-timer";
+import { sortExercisesByPriority, getInsertionOrder } from "@/lib/exercise-ordering";
 
 type SetLog = {
   id?: string;
@@ -293,6 +294,10 @@ export default function SessionLogPage() {
       return;
     }
     const data = await res.json();
+    // Sort exercises by scientific priority: compound lower → compound upper → isolation
+    if (data.exercises) {
+      data.exercises = sortExercisesByPriority(data.exercises);
+    }
     setSession(data);
 
     // Restore timer state if session was started but not ended
@@ -498,7 +503,10 @@ export default function SessionLogPage() {
 
   async function addExercise(exerciseId: string) {
     if (!exerciseId || !session) return;
-    const order = session.exercises.length;
+    const newEx = exercises.find((e) => e.id === exerciseId);
+    const order = newEx
+      ? getInsertionOrder(session.exercises, newEx.name)
+      : session.exercises.length;
     const res = await fetch(`/api/sessions/${id}/exercises`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

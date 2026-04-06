@@ -13,6 +13,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { sortExercisesByPriority, getInsertionOrder } from "@/lib/exercise-ordering";
 
 type Exercise = { id: string; name: string; category: string };
 type TemplateExercise = {
@@ -61,6 +62,9 @@ export default function TemplateBuilderPage() {
       return;
     }
     const data = await res.json();
+    if (data.exercises) {
+      data.exercises = sortExercisesByPriority(data.exercises);
+    }
     setTemplate(data);
   }
 
@@ -77,7 +81,10 @@ export default function TemplateBuilderPage() {
 
   async function addExercise(exerciseId: string) {
     if (!exerciseId || !template) return;
-    const order = template.exercises.length;
+    const newEx = exercises.find((e) => e.id === exerciseId);
+    const order = newEx
+      ? getInsertionOrder(template.exercises, newEx.name)
+      : template.exercises.length;
     const res = await fetch(`/api/templates/${id}/exercises`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

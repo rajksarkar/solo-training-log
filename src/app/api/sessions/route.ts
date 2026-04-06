@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { createSessionSchema } from "@/lib/validations/session";
+import { getExerciseSortPriority } from "@/lib/exercise-ordering";
 
 export async function GET(request: Request) {
   const session = await auth();
@@ -64,13 +65,20 @@ export async function POST(request: Request) {
       const template = await prisma.sessionTemplate.findFirst({
         where: { id: templateId, ownerId: session.user.id },
         include: {
-          exercises: { orderBy: { order: "asc" } },
+          exercises: {
+            orderBy: { order: "asc" },
+            include: { exercise: { select: { name: true } } },
+          },
         },
       });
       if (template) {
-        exercisesData = template.exercises.map((te) => ({
+        // Sort by scientific exercise priority: compound lower → compound upper → isolation
+        const sorted = [...template.exercises].sort((a, b) =>
+          getExerciseSortPriority(a.exercise.name) - getExerciseSortPriority(b.exercise.name)
+        );
+        exercisesData = sorted.map((te, idx) => ({
           exerciseId: te.exerciseId,
-          order: te.order,
+          order: idx,
           notes: te.defaultReps
             ? `${te.defaultSets ?? ""}×${te.defaultReps}${te.defaultWeight ? ` @ ${te.defaultWeight} lb` : ""}`
             : te.defaultDurationSec
