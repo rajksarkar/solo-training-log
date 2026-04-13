@@ -2,7 +2,7 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { LogoutButton } from "@/components/logout-button";
 import { MobileNav } from "@/components/bottom-nav";
-import { Dumbbell, Calendar, Clock, Scale } from "lucide-react";
+import { Dumbbell, Calendar, Clock, Scale, Brain } from "lucide-react";
 
 export default async function AppLayout({
   children,
@@ -16,6 +16,7 @@ export default async function AppLayout({
     { href: "/app/body-weight", label: "Weight", icon: Scale },
     { href: "/app/history", label: "History", icon: Clock },
     { href: "/app/exercises", label: "Exercises", icon: Dumbbell },
+    { href: "/app/alcohol", label: "Alcohol", icon: Brain },
   ];
 
   return (
