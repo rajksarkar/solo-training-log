@@ -32,6 +32,7 @@ export const setLogSchema = z.object({
   unit: weightUnitEnum.optional().default("lb"),
   durationSec: z.number().int().min(0).optional().nullable(),
   distanceMeters: z.number().int().min(0).optional().nullable(),
+  avgHeartRate: z.number().int().min(30).max(250).optional().nullable(),
   rpe: z.number().int().min(1).max(10).optional().nullable(),
   completed: z.boolean().optional().default(true),
   notes: z.string().optional().nullable(),

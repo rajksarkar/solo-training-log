@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CATEGORIES, VOLUME_LANDMARKS } from "@/lib/constants";
+import { sortExercisesByPriority } from "@/lib/exercise-ordering";
 
 type SetLog = {
   reps: number | null;
@@ -52,6 +53,7 @@ type Session = {
   title: string;
   category: string;
   date: string;
+  createdAt: string;
   exercises: SessionExercise[];
 };
 
@@ -309,10 +311,10 @@ export default function WeeklyTrainingPage() {
     setSelectedDate(formatDate(new Date()));
   }
 
-  // Sessions for the selected day
-  const daySessions = sessions.filter(
-    (s) => s.date.slice(0, 10) === selectedDate
-  );
+  // Sessions for the selected day, sorted chronologically (oldest first)
+  const daySessions = sessions
+    .filter((s) => s.date.slice(0, 10) === selectedDate)
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
   // Map of date → session status: "logged" (has set data) or "scheduled" (no data yet)
   const sessionDateStatus = new Map<string, "logged" | "scheduled">();
@@ -479,7 +481,7 @@ export default function WeeklyTrainingPage() {
                 {/* Exercise list preview */}
                 {s.exercises && s.exercises.length > 0 && (
                   <div className="px-4 pb-3 space-y-1.5">
-                    {s.exercises.slice(0, 5).map((ex) => {
+                    {sortExercisesByPriority(s.exercises).slice(0, 5).map((ex) => {
                       const summary = summarizeExercise(ex);
                       return (
                         <div

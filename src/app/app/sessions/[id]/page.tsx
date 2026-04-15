@@ -47,6 +47,8 @@ type SetLog = {
   weight: number | null;
   unit: "lb" | "kg";
   durationSec: number | null;
+  distanceMeters: number | null;
+  avgHeartRate: number | null;
   rpe: number | null;
   completed: boolean;
 };
@@ -130,9 +132,18 @@ function getExerciseInputType(
 
   if (
     name === "run" ||
+    name === "running" ||
     name === "walk" ||
+    name.includes("zone 2") ||
     name.includes("stationary bike") ||
     name.includes("rowing") ||
+    name.includes("cycling") ||
+    name.includes("elliptical") ||
+    name.includes("stair climber") ||
+    name.includes("assault bike") ||
+    name.includes("ski erg") ||
+    name.includes("hiking") ||
+    name.includes("swimming") ||
     name.includes("cardio")
   ) {
     return "cardio";
@@ -223,6 +234,41 @@ function parseRestSeconds(notes: string | null): number | null {
   const unit = match[2]?.toLowerCase();
   if (unit === "sec" || unit === "s") return val;
   return val * 60;
+}
+
+// Evidence-based rest periods by exercise type (Schoenfeld 2016, Galpin)
+// Heavy compound: 180s (3 min) — strength preservation, BP-safe for CAD
+// Moderate compound: 120s (2 min) — hypertrophy range
+// Isolation: 90s — pump/volume work
+// Core: 60s — endurance-focused
+function getDefaultRestSeconds(exerciseName: string): number {
+  const name = exerciseName.toLowerCase();
+
+  // Core / abs: 60s
+  if (
+    /\b(plank|crunch|ab\s|abs|sit.?up|leg.?raise|russian.?twist|pallof|dead.?bug|bird.?dog|hollow|woodchop|ab.?wheel|anti.?rotation)\b/.test(name) ||
+    name.includes("hanging leg raise")
+  ) {
+    return 60;
+  }
+
+  // Heavy compounds: 180s (3 min)
+  if (
+    /\b(bench press|back squat|front squat|deadlift|sumo deadlift|overhead press|military press|zercher squat|hack squat)\b/.test(name) ||
+    /\b(close.?grip bench|incline bench press|decline bench press)\b/.test(name)
+  ) {
+    return 180;
+  }
+
+  // Isolation exercises: 90s
+  if (
+    /\b(curl|extension|raise|fly|flye|crossover|kickback|pushdown|pull.?over|shrug|calf|wrist|face.?pull|reverse fly|lateral|skull.?crush|tricep|bicep|concentration|preacher|hammer)\b/.test(name)
+  ) {
+    return 90;
+  }
+
+  // Moderate compounds (rows, lunges, presses, pulls): 120s
+  return 120;
 }
 
 // Check if a set is a PR (personal record)
@@ -323,6 +369,8 @@ export default function SessionLogPage() {
           weight: l.weight,
           unit: (l.unit ?? "lb") as "lb" | "kg",
           durationSec: l.durationSec,
+          distanceMeters: l.distanceMeters ?? null,
+          avgHeartRate: l.avgHeartRate ?? null,
           rpe: l.rpe,
           completed: l.completed ?? true,
         })
@@ -339,6 +387,8 @@ export default function SessionLogPage() {
             weight: rx.weight,
             unit: rx.unit,
             durationSec: null,
+            distanceMeters: null,
+            avgHeartRate: null,
             rpe: null,
             completed: false,
           }));
@@ -351,6 +401,8 @@ export default function SessionLogPage() {
               weight: null,
               unit: "lb" as const,
               durationSec: null,
+              distanceMeters: null,
+              avgHeartRate: null,
               rpe: null,
               completed: false,
             },
@@ -538,6 +590,8 @@ export default function SessionLogPage() {
           weight: null,
           unit: "lb",
           durationSec: null,
+          distanceMeters: null,
+          avgHeartRate: null,
           rpe: null,
           completed: false,
         },
@@ -577,14 +631,12 @@ export default function SessionLogPage() {
       if (!wasCompleted) {
         const se = session?.exercises.find((e) => e.id === seId);
         if (se) {
-          const restSec = parseRestSeconds(se.notes);
-          if (restSec) {
-            setActiveTimer({
-              seId,
-              initialSeconds: restSec,
-              exerciseName: se.exercise.name,
-            });
-          }
+          const restSec = parseRestSeconds(se.notes) ?? getDefaultRestSeconds(se.exercise.name);
+          setActiveTimer({
+            seId,
+            initialSeconds: restSec,
+            exerciseName: se.exercise.name,
+          });
         }
       }
     }
@@ -868,23 +920,94 @@ export default function SessionLogPage() {
                       ))}
                     </div>
                   ) : inputType === "cardio" ? (
-                    <div className="space-y-2 mt-3">
-                      <div className="grid grid-cols-[1fr_1fr_1.5rem] gap-2">
-                        <span className="text-xs font-bold uppercase text-text-muted">Duration (sec)</span>
-                        <span className="text-xs font-bold uppercase text-text-muted">RPE (1-10)</span>
-                        <span />
-                      </div>
-                      {logs.map((log) => (
-                        <div key={log.setIndex} className="grid grid-cols-[1fr_1fr_1.5rem] gap-2 items-center">
-                          <Input type="number" placeholder="Duration" value={log.durationSec ?? ""} className="h-10 text-sm px-3"
-                            onChange={(e) => { updateLog(se.id, log.setIndex, "durationSec", e.target.value ? parseInt(e.target.value, 10) : null); scheduleAutosave(); }} />
-                          <Input type="number" min={1} max={10} placeholder="RPE" value={log.rpe ?? ""} className="h-10 text-sm px-3"
-                            onChange={(e) => { updateLog(se.id, log.setIndex, "rpe", e.target.value ? parseInt(e.target.value, 10) : null); scheduleAutosave(); }} />
-                          <button onClick={() => toggleComplete(se.id, log.setIndex)} className="flex items-center justify-center">
-                            {log.completed ? <CheckCircle2 className="h-5 w-5 text-success" /> : <Circle className="h-5 w-5 text-text-muted" />}
-                          </button>
-                        </div>
-                      ))}
+                    <div className="space-y-3 mt-3">
+                      {logs.map((log) => {
+                        const durationMin = log.durationSec != null ? Math.round(log.durationSec / 60 * 10) / 10 : null;
+                        const distanceMi = log.distanceMeters != null ? Math.round(log.distanceMeters / 1609.344 * 100) / 100 : null;
+                        const paceSecPerMi = (log.durationSec && log.distanceMeters && log.distanceMeters > 0)
+                          ? Math.round(log.durationSec / (log.distanceMeters / 1609.344))
+                          : null;
+                        const paceStr = paceSecPerMi
+                          ? `${Math.floor(paceSecPerMi / 60)}:${(paceSecPerMi % 60).toString().padStart(2, "0")} /mi`
+                          : null;
+                        const speedMph = (log.durationSec && log.distanceMeters && log.durationSec > 0)
+                          ? Math.round((log.distanceMeters / 1609.344) / (log.durationSec / 3600) * 10) / 10
+                          : null;
+
+                        return (
+                          <div key={log.setIndex} className="rounded-lg border border-border bg-surface/50 p-3 space-y-2.5">
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-xs font-bold uppercase text-text-muted mb-1 block">Duration (min)</label>
+                                <Input type="number" step="0.1" placeholder="--" inputMode="decimal"
+                                  value={durationMin ?? ""} className="h-10 text-sm px-3"
+                                  onChange={(e) => {
+                                    const min = e.target.value ? parseFloat(e.target.value) : null;
+                                    updateLog(se.id, log.setIndex, "durationSec", min != null ? Math.round(min * 60) : null);
+                                    scheduleAutosave();
+                                  }} />
+                              </div>
+                              <div>
+                                <label className="text-xs font-bold uppercase text-text-muted mb-1 block">Distance (mi)</label>
+                                <Input type="number" step="0.01" placeholder="--" inputMode="decimal"
+                                  value={distanceMi ?? ""} className="h-10 text-sm px-3"
+                                  onChange={(e) => {
+                                    const mi = e.target.value ? parseFloat(e.target.value) : null;
+                                    updateLog(se.id, log.setIndex, "distanceMeters", mi != null ? Math.round(mi * 1609.344) : null);
+                                    scheduleAutosave();
+                                  }} />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-xs font-bold uppercase text-text-muted mb-1 block">Avg HR (bpm)</label>
+                                <Input type="number" placeholder="--" inputMode="numeric"
+                                  value={log.avgHeartRate ?? ""} className="h-10 text-sm px-3"
+                                  onChange={(e) => {
+                                    updateLog(se.id, log.setIndex, "avgHeartRate", e.target.value ? parseInt(e.target.value, 10) : null);
+                                    scheduleAutosave();
+                                  }} />
+                              </div>
+                              <div>
+                                <label className="text-xs font-bold uppercase text-text-muted mb-1 block">RPE (1-10)</label>
+                                <Input type="number" min={1} max={10} placeholder="--" inputMode="numeric"
+                                  value={log.rpe ?? ""} className="h-10 text-sm px-3"
+                                  onChange={(e) => {
+                                    updateLog(se.id, log.setIndex, "rpe", e.target.value ? parseInt(e.target.value, 10) : null);
+                                    scheduleAutosave();
+                                  }} />
+                              </div>
+                            </div>
+                            {(paceStr || speedMph) && (
+                              <div className="flex items-center justify-between pt-1 border-t border-border/50">
+                                {paceStr && (
+                                  <span className="text-sm font-semibold text-primary">
+                                    Pace: {paceStr}
+                                  </span>
+                                )}
+                                {speedMph && (
+                                  <span className="text-sm text-text-secondary">
+                                    {speedMph} mph
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            <div className="flex items-center justify-between pt-1">
+                              <button onClick={() => toggleComplete(se.id, log.setIndex)} className="flex items-center gap-1.5 text-xs font-medium">
+                                {log.completed ? <CheckCircle2 className="h-5 w-5 text-success" /> : <Circle className="h-5 w-5 text-text-muted" />}
+                                <span className={log.completed ? "text-success" : "text-text-muted"}>{log.completed ? "Completed" : "Mark complete"}</span>
+                              </button>
+                              {log.avgHeartRate && (
+                                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                                  log.avgHeartRate <= 140 ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
+                                }`}>
+                                  {log.avgHeartRate <= 140 ? "Zone 2" : "Above Z2"}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="space-y-2 mt-3">

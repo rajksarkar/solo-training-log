@@ -25,10 +25,13 @@ export async function GET(
     return NextResponse.json({ error: "Exercise not found" }, { status: 404 });
   }
 
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+
   const sessionExercises = await prisma.sessionExercise.findMany({
     where: {
       exerciseId,
-      session: { ownerId: session.user.id },
+      session: { ownerId: session.user.id, date: { lte: today } },
     },
     include: {
       session: { select: { id: true, title: true, date: true } },

@@ -38,6 +38,7 @@ model User {
   sessions         Session[]
   bodyWeights      BodyWeight[]
   bodyCompositions BodyComposition[]
+  healthMetrics    HealthMetric[]
 }
 
 model Exercise {
@@ -130,6 +131,7 @@ model SetLog {
   unit              WeightUnit  @default(lb)
   durationSec       Int?        @map("duration_sec")
   distanceMeters    Int?        @map("distance_meters")
+  avgHeartRate      Int?        @map("avg_heart_rate")
   rpe               Int?
   completed         Boolean     @default(true)
   notes             String?
@@ -172,4 +174,23 @@ model BodyComposition {
   owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
   @@unique([ownerId, date, scanType])
+}
+
+model HealthMetric {
+  id        String   @id @default(cuid())
+  ownerId   String   @map("owner_id")
+  date      DateTime
+  metric    String   // resting_heart_rate, hrv, sleep_duration, steps, active_calories, vo2max, etc.
+  value     Float
+  unit      String   // bpm, ms, hours, count, kcal, ml/kg/min, etc.
+  source    String?  @default("apple_watch")
+  metadata  Json?    // extra data (e.g., sleep stages, HR zones)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerId, date, metric])
+  @@index([ownerId, date])
+  @@index([ownerId, metric])
+  @@map("health_metrics")
 }

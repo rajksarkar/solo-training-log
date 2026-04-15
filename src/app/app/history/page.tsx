@@ -59,7 +59,8 @@ export default function HistoryPage() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch("/api/sessions");
+        const today = new Date().toISOString().slice(0, 10);
+        const res = await fetch(`/api/sessions?to=${today}`);
         const data = await res.json();
         setSessions(Array.isArray(data) ? data : []);
       } catch {

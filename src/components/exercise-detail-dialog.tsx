@@ -206,7 +206,7 @@ export function ExerciseDetailDialog({
                 <p className="text-text-secondary text-sm">No history yet</p>
               </div>
             ) : (
-              history.slice().reverse().map((entry, i) => (
+              history.map((entry, i) => (
                 <Link
                   key={entry.sessionId + entry.date + i}
                   href={`/app/sessions/${entry.sessionId}`}
