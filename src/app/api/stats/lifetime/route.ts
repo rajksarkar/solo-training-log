@@ -10,9 +10,12 @@ export async function GET() {
 
   const userId = session.user.id;
 
-  // Get all sessions with exercises and set logs
+  // Get all sessions up to today with exercises and set logs
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+
   const sessions = await prisma.session.findMany({
-    where: { ownerId: userId },
+    where: { ownerId: userId, date: { lte: today } },
     select: {
       id: true,
       title: true,

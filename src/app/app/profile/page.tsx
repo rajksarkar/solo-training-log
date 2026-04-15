@@ -135,7 +135,8 @@ export default function ProfilePage() {
   }, []);
 
   const fetchWeightStats = useCallback(async () => {
-    const res = await fetch("/api/body-weight?days=7");
+    // Use a large window to always find the most recent weigh-in
+    const res = await fetch("/api/body-weight?days=365");
     if (res.ok) {
       const data = await res.json();
       setWeightStats(data.stats);
@@ -151,7 +152,8 @@ export default function ProfilePage() {
   }, []);
 
   const fetchSessionStats = useCallback(async () => {
-    const res = await fetch("/api/sessions");
+    const today = new Date().toISOString().slice(0, 10);
+    const res = await fetch(`/api/sessions?to=${today}`);
     if (res.ok) {
       const sessions: { id: string; date: string }[] = await res.json();
       const uniqueDates = new Set(
