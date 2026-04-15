@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Brain,
   Flame,
@@ -18,6 +18,7 @@ import {
 
 // ── Constants ──────────────────────────────────────────────
 const STORAGE_KEY = "operation-clear-mind";
+const API_KEY = "alcohol-tracker";
 const START_DATE = "2026-04-12";
 const DRINKS_PER_WEEK_BASELINE = 8;
 const CAL_PER_DRINK = 150;
@@ -248,28 +249,87 @@ export default function AlcoholPage() {
   const [openWeeks, setOpenWeeks] = useState<Record<string, boolean>>({});
   const [showEmergency, setShowEmergency] = useState(false);
   const [badgeToast, setBadgeToast] = useState<Badge | null>(null);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
-  // Load from localStorage
+  // Load from server (with localStorage migration)
   useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
+    async function load() {
       try {
-        setState({ ...defaultState, ...JSON.parse(raw) });
+        const res = await fetch(`/api/user-state/${API_KEY}`);
+        if (res.ok) {
+          const { data } = await res.json();
+          if (data) {
+            setState({ ...defaultState, ...data });
+            // Clear localStorage since server is now the source of truth
+            localStorage.removeItem(STORAGE_KEY);
+            setLoaded(true);
+            return;
+          }
+        }
       } catch {
-        setState(defaultState);
+        // Server unreachable — fall back to localStorage
       }
+
+      // No server data — check localStorage for migration
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        try {
+          const parsed = { ...defaultState, ...JSON.parse(raw) };
+          setState(parsed);
+          // Migrate to server
+          fetch(`/api/user-state/${API_KEY}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ data: parsed }),
+          }).then(() => localStorage.removeItem(STORAGE_KEY)).catch(() => {});
+        } catch {
+          setState(defaultState);
+        }
+      }
+      setLoaded(true);
     }
-    setLoaded(true);
+    load();
   }, []);
 
-  // Save to localStorage
+  // Save to server (debounced) with localStorage as write-through cache
   const save = useCallback(
     (next: AppState) => {
       setState(next);
+      // Write-through to localStorage for instant reads if page reloads mid-save
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      // Debounce server save
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = setTimeout(async () => {
+        try {
+          await fetch(`/api/user-state/${API_KEY}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ data: stateRef.current }),
+          });
+          // Server saved successfully — clear localStorage cache
+          localStorage.removeItem(STORAGE_KEY);
+        } catch {
+          // Server unreachable — localStorage keeps the data safe until next save
+        }
+        saveTimeoutRef.current = null;
+      }, 1000);
     },
     []
   );
+
+  // Cleanup debounce timer and flush on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        // Fire a final save synchronously via sendBeacon if possible
+        const data = JSON.stringify({ data: stateRef.current });
+        navigator.sendBeacon?.(`/api/user-state/${API_KEY}`, new Blob([data], { type: "application/json" }));
+      }
+    };
+  }, []);
 
   // Auto-open current week & set phase on load
   useEffect(() => {
@@ -356,6 +416,11 @@ export default function AlcoholPage() {
       if (confirm("Really? You'll lose your streak, XP, badges, and journal entries.")) {
         localStorage.removeItem(STORAGE_KEY);
         setState(defaultState);
+        fetch(`/api/user-state/${API_KEY}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data: defaultState }),
+        }).catch(() => {});
       }
     }
   }

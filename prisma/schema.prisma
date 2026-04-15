@@ -39,6 +39,7 @@ model User {
   bodyWeights      BodyWeight[]
   bodyCompositions BodyComposition[]
   healthMetrics    HealthMetric[]
+  userStates       UserState[]
 }
 
 model Exercise {
@@ -174,6 +175,20 @@ model BodyComposition {
   owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
   @@unique([ownerId, date, scanType])
+}
+
+model UserState {
+  id        String   @id @default(cuid())
+  ownerId   String   @map("owner_id")
+  key       String   // e.g. "alcohol-tracker"
+  data      Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerId, key])
+  @@map("user_states")
 }
 
 model HealthMetric {
