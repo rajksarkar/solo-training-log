@@ -1,14 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
 import { Play, Pause, Plus, Minus, X } from "lucide-react";
-
-type RestTimerProps = {
-  initialSeconds: number;
-  exerciseName: string;
-  onComplete?: () => void;
-  onDismiss: () => void;
-};
 
 function formatTime(totalSeconds: number): string {
   const m = Math.floor(totalSeconds / 60);
@@ -16,7 +8,7 @@ function formatTime(totalSeconds: number): string {
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
-function playBeep() {
+export function playBeep() {
   try {
     const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
     const osc = ctx.createOscillator();
@@ -34,7 +26,7 @@ function playBeep() {
   }
 }
 
-function vibrate() {
+export function vibrate() {
   try {
     navigator.vibrate?.(200);
   } catch {
@@ -42,79 +34,55 @@ function vibrate() {
   }
 }
 
-export function RestTimer({ initialSeconds, exerciseName, onComplete, onDismiss }: RestTimerProps) {
-  const [remaining, setRemaining] = useState(initialSeconds);
-  const [isRunning, setIsRunning] = useState(true);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const hasCompletedRef = useRef(false);
+type RestTimerProps = {
+  remainingSeconds: number;
+  totalSeconds: number;
+  exerciseName: string;
+  isPaused: boolean;
+  onTogglePause: () => void;
+  onAdjust: (deltaSeconds: number) => void;
+  onDismiss: () => void;
+};
 
-  const clearTimer = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => {
-    if (isRunning && remaining > 0) {
-      intervalRef.current = setInterval(() => {
-        setRemaining((prev) => {
-          if (prev <= 1) {
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else {
-      clearTimer();
-    }
-    return clearTimer;
-  }, [isRunning, remaining, clearTimer]);
-
-  useEffect(() => {
-    if (remaining === 0 && !hasCompletedRef.current) {
-      hasCompletedRef.current = true;
-      playBeep();
-      vibrate();
-      onComplete?.();
-    }
-  }, [remaining, onComplete]);
-
-  const progress = initialSeconds > 0 ? remaining / initialSeconds : 0;
+export function RestTimer({
+  remainingSeconds,
+  totalSeconds,
+  exerciseName,
+  isPaused,
+  onTogglePause,
+  onAdjust,
+  onDismiss,
+}: RestTimerProps) {
+  const progress = totalSeconds > 0 ? remainingSeconds / totalSeconds : 0;
 
   return (
     <div className="mt-3 rounded-xl border border-border bg-surface p-3">
       <div className="flex items-center gap-3">
-        {/* Timer display */}
         <span className="text-2xl font-bold text-primary tabular-nums min-w-[5rem]">
-          {formatTime(remaining)}
+          {formatTime(remainingSeconds)}
         </span>
-
-        {/* Progress bar */}
         <div className="flex-1 h-2 rounded-full bg-surface-high overflow-hidden">
           <div
-            className="h-full bg-primary rounded-full transition-all duration-1000 ease-linear"
+            className="h-full bg-primary rounded-full transition-all duration-500 ease-linear"
             style={{ width: `${progress * 100}%` }}
           />
         </div>
-
-        {/* Controls */}
         <div className="flex items-center gap-1 shrink-0">
           <button
-            onClick={() => setRemaining((prev) => Math.max(0, prev - 30))}
+            onClick={() => onAdjust(-30)}
             className="h-8 w-8 flex items-center justify-center rounded-lg text-text-secondary hover:bg-surface-high hover:text-text transition-colors"
             title="-30s"
           >
             <Minus className="h-3.5 w-3.5" />
           </button>
           <button
-            onClick={() => setIsRunning((prev) => !prev)}
+            onClick={onTogglePause}
             className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
           >
-            {isRunning ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+            {isPaused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
           </button>
           <button
-            onClick={() => setRemaining((prev) => prev + 30)}
+            onClick={() => onAdjust(30)}
             className="h-8 w-8 flex items-center justify-center rounded-lg text-text-secondary hover:bg-surface-high hover:text-text transition-colors"
             title="+30s"
           >

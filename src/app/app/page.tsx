@@ -28,7 +28,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CATEGORIES, VOLUME_LANDMARKS } from "@/lib/constants";
-import { sortExercisesByPriority } from "@/lib/exercise-ordering";
 
 type SetLog = {
   reps: number | null;
@@ -54,6 +53,8 @@ type Session = {
   category: string;
   date: string;
   createdAt: string;
+  startedAt: string | null;
+  endedAt: string | null;
   exercises: SessionExercise[];
 };
 
@@ -320,7 +321,7 @@ export default function WeeklyTrainingPage() {
   const sessionDateStatus = new Map<string, "logged" | "scheduled">();
   for (const s of sessions) {
     const dateKey = s.date.slice(0, 10);
-    const hasLoggedData = s.exercises?.some(
+    const hasLoggedData = !!s.endedAt || s.exercises?.some(
       (ex) => ex.setLogs?.some((l) => l.completed && (l.reps != null || l.weight != null || l.durationSec != null))
     );
     const current = sessionDateStatus.get(dateKey);
@@ -444,7 +445,10 @@ export default function WeeklyTrainingPage() {
               (acc, ex) => acc + (ex.setLogs?.length ?? 0),
               0
             ) ?? 0;
-            const isComplete = totalSets > 0 && completedSets === totalSets;
+            // A session counts as complete once the user has explicitly ended it,
+            // even if not every set was ticked off. Fall back to the old heuristic
+            // for legacy sessions that never recorded an endedAt.
+            const isComplete = !!s.endedAt || (totalSets > 0 && completedSets === totalSets);
 
             return (
               <Link key={s.id} href={`/app/sessions/${s.id}`} className="block rounded-xl bg-surface border border-border overflow-hidden hover:border-primary/30 transition-all">
@@ -481,7 +485,7 @@ export default function WeeklyTrainingPage() {
                 {/* Exercise list preview */}
                 {s.exercises && s.exercises.length > 0 && (
                   <div className="px-4 pb-3 space-y-1.5">
-                    {sortExercisesByPriority(s.exercises).slice(0, 5).map((ex) => {
+                    {s.exercises.slice(0, 5).map((ex) => {
                       const summary = summarizeExercise(ex);
                       return (
                         <div

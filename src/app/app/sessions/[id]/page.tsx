@@ -19,6 +19,9 @@ import {
   Square,
   Trophy,
   CalendarDays,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,8 +39,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ExerciseDetailDialog } from "@/components/exercise-detail-dialog";
-import { RestTimer, FloatingTimer } from "@/components/rest-timer";
-import { sortExercisesByPriority, getInsertionOrder } from "@/lib/exercise-ordering";
+import { RestTimer, FloatingTimer, playBeep, vibrate } from "@/components/rest-timer";
+import { getInsertionOrder } from "@/lib/exercise-ordering";
 
 type SetLog = {
   id?: string;
@@ -299,13 +302,20 @@ export default function SessionLogPage() {
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [expandedExercises, setExpandedExercises] = useState<Set<string>>(new Set());
   const [selectedExercise, setSelectedExercise] = useState<SessionExercise["exercise"] | null>(null);
+  const [reorderMode, setReorderMode] = useState(false);
+
+  // Timer state (lifted up so both RestTimer and FloatingTimer share one source of truth).
+  // endAt is a wall-clock timestamp (ms since epoch) so the timer stays accurate even
+  // when the browser backgrounds setInterval on mobile.
   const [activeTimer, setActiveTimer] = useState<{
     seId: string;
-    initialSeconds: number;
+    endAt: number;
+    pausedRemainingMs: number | null;
+    totalSeconds: number;
     exerciseName: string;
   } | null>(null);
-  const [floatingSeconds, setFloatingSeconds] = useState(0);
-  const floatingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [, setTimerTick] = useState(0);
+  const timerCompletedRef = useRef<string | null>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localLogsRef = useRef(localLogs);
   localLogsRef.current = localLogs;
@@ -340,10 +350,8 @@ export default function SessionLogPage() {
       return;
     }
     const data = await res.json();
-    // Sort exercises by scientific priority: compound lower → compound upper → isolation
-    if (data.exercises) {
-      data.exercises = sortExercisesByPriority(data.exercises);
-    }
+    // Server returns exercises ordered by their stored `order` field. Respect
+    // that directly so manual reorders persist.
     setSession(data);
 
     // Restore timer state if session was started but not ended
@@ -519,33 +527,70 @@ export default function SessionLogPage() {
     };
   }, []);
 
-  // Track floating timer seconds for the FloatingTimer display
+  // Drive a re-render every 500ms while a timer is active. The actual remaining
+  // time is computed from Date.now() vs activeTimer.endAt, so backgrounded tabs
+  // (where setInterval is throttled to ~1/minute on iOS Safari) still render the
+  // correct value the instant the user returns to the page.
   useEffect(() => {
-    if (activeTimer) {
-      setFloatingSeconds(activeTimer.initialSeconds);
-      floatingIntervalRef.current = setInterval(() => {
-        setFloatingSeconds((prev) => {
-          if (prev <= 1) {
-            if (floatingIntervalRef.current) clearInterval(floatingIntervalRef.current);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else {
-      setFloatingSeconds(0);
-      if (floatingIntervalRef.current) {
-        clearInterval(floatingIntervalRef.current);
-        floatingIntervalRef.current = null;
-      }
-    }
+    if (!activeTimer) return;
+    const iv = setInterval(() => setTimerTick((t) => t + 1), 500);
+    const onVis = () => setTimerTick((t) => t + 1);
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("focus", onVis);
     return () => {
-      if (floatingIntervalRef.current) {
-        clearInterval(floatingIntervalRef.current);
-        floatingIntervalRef.current = null;
-      }
+      clearInterval(iv);
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("focus", onVis);
     };
   }, [activeTimer]);
+
+  // Compute current remaining time from the wall clock. Paused timers hold
+  // their remaining ms in state until resumed.
+  const timerRemainingSec = activeTimer
+    ? activeTimer.pausedRemainingMs != null
+      ? Math.max(0, Math.ceil(activeTimer.pausedRemainingMs / 1000))
+      : Math.max(0, Math.ceil((activeTimer.endAt - Date.now()) / 1000))
+    : 0;
+  const timerIsPaused = !!activeTimer && activeTimer.pausedRemainingMs != null;
+
+  // Fire completion side-effects exactly once per timer instance. Keyed by the
+  // (seId + endAt) tuple so a new timer for the same exercise re-arms properly.
+  useEffect(() => {
+    if (!activeTimer) {
+      timerCompletedRef.current = null;
+      return;
+    }
+    const key = `${activeTimer.seId}:${activeTimer.endAt}`;
+    if (!timerIsPaused && timerRemainingSec === 0 && timerCompletedRef.current !== key) {
+      timerCompletedRef.current = key;
+      playBeep();
+      vibrate();
+      setActiveTimer(null);
+    }
+  }, [activeTimer, timerIsPaused, timerRemainingSec]);
+
+  function toggleTimerPause() {
+    setActiveTimer((t) => {
+      if (!t) return t;
+      if (t.pausedRemainingMs != null) {
+        // Resume: push endAt forward by the paused amount
+        return { ...t, endAt: Date.now() + t.pausedRemainingMs, pausedRemainingMs: null };
+      }
+      // Pause: capture remaining ms
+      return { ...t, pausedRemainingMs: Math.max(0, t.endAt - Date.now()) };
+    });
+  }
+
+  function adjustTimer(deltaSeconds: number) {
+    const deltaMs = deltaSeconds * 1000;
+    setActiveTimer((t) => {
+      if (!t) return t;
+      if (t.pausedRemainingMs != null) {
+        return { ...t, pausedRemainingMs: Math.max(0, t.pausedRemainingMs + deltaMs) };
+      }
+      return { ...t, endAt: Math.max(Date.now(), t.endAt + deltaMs) };
+    });
+  }
 
   async function deleteSession() {
     if (!confirm("Delete this workout and all logged sets?")) return;
@@ -575,6 +620,31 @@ export default function SessionLogPage() {
     if (!confirm("Remove this exercise?")) return;
     await fetch(`/api/sessions/${id}/exercises/${seId}`, { method: "DELETE" });
     fetchSession();
+  }
+
+  async function moveExercise(seId: string, direction: "up" | "down") {
+    if (!session) return;
+    const idx = session.exercises.findIndex((e) => e.id === seId);
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (idx < 0 || swapIdx < 0 || swapIdx >= session.exercises.length) return;
+
+    const next = [...session.exercises];
+    [next[idx], next[swapIdx]] = [next[swapIdx], next[idx]];
+    const reordered = next.map((e, i) => ({ ...e, order: i }));
+    setSession({ ...session, exercises: reordered });
+
+    await Promise.all([
+      fetch(`/api/sessions/${id}/exercises/${reordered[idx].id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ order: idx }),
+      }),
+      fetch(`/api/sessions/${id}/exercises/${reordered[swapIdx].id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ order: swapIdx }),
+      }),
+    ]);
   }
 
   function addSet(seId: string) {
@@ -634,7 +704,9 @@ export default function SessionLogPage() {
           const restSec = parseRestSeconds(se.notes) ?? getDefaultRestSeconds(se.exercise.name);
           setActiveTimer({
             seId,
-            initialSeconds: restSec,
+            endAt: Date.now() + restSec * 1000,
+            pausedRemainingMs: null,
+            totalSeconds: restSec,
             exerciseName: se.exercise.name,
           });
         }
@@ -776,6 +848,16 @@ export default function SessionLogPage() {
           <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
           Move
         </Button>
+        {session.exercises.length > 1 && (
+          <Button
+            variant={reorderMode ? "default" : "outline"}
+            size="sm"
+            onClick={() => setReorderMode((r) => !r)}
+          >
+            <ArrowUpDown className="h-3.5 w-3.5 mr-1.5" />
+            {reorderMode ? "Done" : "Reorder"}
+          </Button>
+        )}
         <Button variant="ghost" size="icon" onClick={deleteSession} className="ml-auto">
           <Trash2 className="h-4 w-4 text-error" />
         </Button>
@@ -840,19 +922,48 @@ export default function SessionLogPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeExercise(se.id);
-                    }}
-                    className="p-1.5 rounded-md text-text-muted hover:text-error hover:bg-error/10 transition-colors"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                  {expanded ? (
-                    <ChevronUp className="h-4 w-4 text-text-muted" />
+                  {reorderMode ? (
+                    <>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          moveExercise(se.id, "up");
+                        }}
+                        disabled={exIdx === 0}
+                        className="p-2 rounded-md text-text-secondary hover:text-primary hover:bg-primary/10 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-text-secondary transition-colors"
+                        aria-label="Move up"
+                      >
+                        <ArrowUp className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          moveExercise(se.id, "down");
+                        }}
+                        disabled={exIdx === session.exercises.length - 1}
+                        className="p-2 rounded-md text-text-secondary hover:text-primary hover:bg-primary/10 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-text-secondary transition-colors"
+                        aria-label="Move down"
+                      >
+                        <ArrowDown className="h-4 w-4" />
+                      </button>
+                    </>
                   ) : (
-                    <ChevronDown className="h-4 w-4 text-text-muted" />
+                    <>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeExercise(se.id);
+                        }}
+                        className="p-1.5 rounded-md text-text-muted hover:text-error hover:bg-error/10 transition-colors"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                      {expanded ? (
+                        <ChevronUp className="h-4 w-4 text-text-muted" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 text-text-muted" />
+                      )}
+                    </>
                   )}
                 </div>
               </button>
@@ -1038,9 +1149,12 @@ export default function SessionLogPage() {
                   )}
                   {activeTimer?.seId === se.id && (
                     <RestTimer
-                      initialSeconds={activeTimer.initialSeconds}
+                      remainingSeconds={timerRemainingSec}
+                      totalSeconds={activeTimer.totalSeconds}
                       exerciseName={activeTimer.exerciseName}
-                      onComplete={() => setActiveTimer(null)}
+                      isPaused={timerIsPaused}
+                      onTogglePause={toggleTimerPause}
+                      onAdjust={adjustTimer}
                       onDismiss={() => setActiveTimer(null)}
                     />
                   )}
@@ -1155,9 +1269,9 @@ export default function SessionLogPage() {
       )}
 
       {/* Floating Rest Timer */}
-      {activeTimer && floatingSeconds > 0 && (
+      {activeTimer && timerRemainingSec > 0 && (
         <FloatingTimer
-          seconds={floatingSeconds}
+          seconds={timerRemainingSec}
           exerciseName={activeTimer.exerciseName}
           onTap={() => {
             setExpandedExercises((prev) => {
