@@ -19,11 +19,11 @@ export type SwapCandidate = SwapExercise & {
 };
 
 const PATTERNS: Array<{ name: string; test: RegExp }> = [
+  { name: "horizontal-push", test: /\b(bench|chest press|floor press|push.?ups?|dips?|fly|flye|crossover|pec deck)\b/i },
   { name: "vertical-push", test: /\b(overhead|ohp|military|shoulder press|arnold|push press|landmine press)\b/i },
-  { name: "horizontal-push", test: /\b(bench|chest press|push.?up|pushup|dip|fly|flye|crossover|pec deck)\b/i },
-  { name: "vertical-pull", test: /\b(pull.?up|chin.?up|pulldown|lat pull)\b/i },
-  { name: "horizontal-pull", test: /\b(row|chest.?supported|t.?bar|inverted)\b/i },
-  { name: "hinge", test: /\b(deadlift|rdl|romanian|good.?morning|hip thrust|hip hinge|pull.?through|kettlebell swing|nordic)\b/i },
+  { name: "vertical-pull", test: /\b(pull.?ups?|chin.?ups?|pull.?down|pulldown|lat pull)\b/i },
+  { name: "horizontal-pull", test: /\b(rows?|chest.?supported|t.?bar|inverted)\b/i },
+  { name: "hinge", test: /\b(deadlift|rdl|romanian|good.?morning|hip thrust|hip hinge|pull.?through|kettlebell swings?|kb swings?|nordic)\b/i },
   { name: "squat", test: /\b(squat|leg press|hack)\b/i },
   { name: "lunge", test: /\b(lunge|split squat|step.?up|bulgarian)\b/i },
   { name: "knee-extension", test: /\b(leg extension|sissy squat)\b/i },
@@ -31,12 +31,16 @@ const PATTERNS: Array<{ name: string; test: RegExp }> = [
   { name: "calf", test: /\b(calf|heel raise)\b/i },
   { name: "curl", test: /\b(curl)\b/i },
   { name: "tricep-extension", test: /\b(tricep|pushdown|skull|overhead extension|kickback|close.?grip bench)\b/i },
-  { name: "lateral-raise", test: /\b(lateral raise|side raise|lateral delt)\b/i },
-  { name: "rear-delt", test: /\b(rear delt|face pull|reverse fly)\b/i },
-  { name: "shrug", test: /\b(shrug)\b/i },
+  { name: "lateral-raise", test: /\b((lateral|side|front)\s+(shoulder\s+)?raise|lateral delt)\b/i },
+  { name: "rear-delt", test: /\b(rear delt|face pull|reverse fly|band pull.?apart|pull apart)\b/i },
+  { name: "shrug", test: /\bshrugs?\b/i },
   { name: "core-anti-ext", test: /\b(plank|dead.?bug|ab wheel|rollout|hollow)\b/i },
   { name: "core-anti-rot", test: /\b(pallof|anti.?rotation|woodchop|chop)\b/i },
   { name: "core-flexion", test: /\b(crunch|sit.?up|leg raise|v.?up)\b/i },
+  // Fallback: stance-based "press" (Standing DB Press, Seated DB Press, Half
+  // Kneeling Single Arm Press, etc.) — evaluated last so chest/overhead named
+  // presses claim themselves first.
+  { name: "vertical-push", test: /\b(standing|seated|half.?kneeling|tall.?kneeling|kneeling)\b.*\bpress\b/i },
 ];
 
 function movementPattern(name: string): string | null {
@@ -49,26 +53,37 @@ function movementPattern(name: string): string | null {
 // canonical tags as the DB: chest, back, shoulders, quads, hamstrings, biceps,
 // triceps, glutes, calves, core.
 const MUSCLE_RULES: Array<{ test: RegExp; muscles: string[] }> = [
-  { test: /\b(bench press|chest press|push.?up|pushup|dip|pec|fly|flye|crossover)\b/i, muscles: ["chest", "triceps", "shoulders"] },
-  { test: /\b(incline (db|dumbbell|barbell) press|incline press|incline bench)\b/i, muscles: ["chest", "shoulders", "triceps"] },
+  // Chest (bench / chest press / floor press / push-ups / dips / flys)
+  { test: /\b(bench press|chest press|floor press|push.?ups?|dips?|pec|fly|flye|crossover)\b/i, muscles: ["chest", "triceps", "shoulders"] },
+  { test: /\bincline\b.*\b(bench|press)\b/i, muscles: ["chest", "shoulders", "triceps"] },
+  // Shoulders — explicit overhead / military / landmine / arnold
   { test: /\b(overhead press|ohp|military press|shoulder press|arnold|push press|landmine press)\b/i, muscles: ["shoulders", "triceps"] },
-  { test: /\b(lateral raise|side raise|lateral delt|upright row)\b/i, muscles: ["shoulders"] },
-  { test: /\b(face pull|rear delt|reverse fly)\b/i, muscles: ["shoulders", "back"] },
-  { test: /\b(lat pull|pulldown|pull.?up|chin.?up)\b/i, muscles: ["back", "biceps"] },
-  { test: /\b(row|inverted row|t.?bar)\b/i, muscles: ["back", "biceps"] },
-  { test: /\b(shrug)\b/i, muscles: ["back", "shoulders"] },
+  { test: /\b((lateral|side|front)\s+(shoulder\s+)?raise|lateral delt|upright row)\b/i, muscles: ["shoulders"] },
+  { test: /\b(face pull|rear delt|reverse fly|band pull.?apart|pull apart)\b/i, muscles: ["shoulders", "back"] },
+  // Back
+  { test: /\b(lat pull|pull.?down|pulldown|pull.?ups?|chin.?ups?)\b/i, muscles: ["back", "biceps"] },
+  { test: /\b(rows?|inverted row|t.?bar|chest.?supported)\b/i, muscles: ["back", "biceps"] },
+  { test: /\bshrugs?\b/i, muscles: ["back", "shoulders"] },
+  // Posterior chain
   { test: /\b(deadlift|rdl|romanian|good.?morning)\b/i, muscles: ["hamstrings", "glutes", "back"] },
-  { test: /\b(hip thrust|glute bridge|pull.?through|kettlebell swing)\b/i, muscles: ["glutes", "hamstrings"] },
+  { test: /\b(hip thrust|glute bridge|pull.?through|kettlebell swings?|kb swings?|frog pump)\b/i, muscles: ["glutes", "hamstrings"] },
+  // Legs (squats / lunges / isolation)
   { test: /\b(back squat|front squat|goblet squat|zercher|hack squat|leg press)\b/i, muscles: ["quads", "glutes"] },
   { test: /\bsquat\b/i, muscles: ["quads", "glutes"] },
-  { test: /\b(lunge|split squat|step.?up|bulgarian)\b/i, muscles: ["quads", "glutes"] },
+  { test: /\b(lunge|split squat|step.?up|step.?down|bulgarian)\b/i, muscles: ["quads", "glutes"] },
   { test: /\b(leg extension|sissy squat)\b/i, muscles: ["quads"] },
   { test: /\b(leg curl|hamstring curl|nordic)\b/i, muscles: ["hamstrings"] },
   { test: /\b(calf|heel raise)\b/i, muscles: ["calves"] },
+  // Arms
   { test: /\b(tricep|pushdown|skull.?crush|close.?grip bench|kickback|overhead extension)\b/i, muscles: ["triceps"] },
   { test: /\b(bicep|preacher|hammer curl|concentration)\b/i, muscles: ["biceps"] },
   { test: /\bcurl\b/i, muscles: ["biceps"] },
-  { test: /\b(plank|crunch|sit.?up|ab wheel|rollout|hollow|dead.?bug|bird.?dog|pallof|woodchop|russian twist|leg raise|v.?up|mountain climber|bear crawl)\b/i, muscles: ["core"] },
+  // Core
+  { test: /\b(plank|crunch|crunches|sit.?ups?|ab wheel|rollout|hollow|dead.?bug|bird.?dog|pallof|woodchop|russian twist|leg raise|v.?ups?|mountain climber|bear crawls?)\b/i, muscles: ["core"] },
+  // Fallback: stance-based presses (Standing DB Press, Seated DB Press, Half
+  // Kneeling Single Arm Press, Upside Down KB Press, etc.) — placed after the
+  // chest/overhead rules so they only catch the ambiguous residual.
+  { test: /\b(standing|seated|half.?kneeling|tall.?kneeling|kneeling|single arm|one arm|kb|kettlebell|upside.?down)\b.*\bpress\b/i, muscles: ["shoulders", "triceps"] },
 ];
 
 function inferMusclesFromName(name: string): string[] {
@@ -175,5 +190,17 @@ export function rankSwapCandidates(
     if (s) scored.push(s);
   }
   scored.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+
+  // Safety net: if the scorer returned nothing (e.g., a niche exercise with no
+  // muscle metadata and no recognizable pattern like "Bear Crawl" or "Run"),
+  // fall back to same-category candidates so the user always gets options.
+  if (scored.length === 0) {
+    return pool
+      .filter((c) => c.id !== source.id && c.category === source.category)
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .slice(0, limit)
+      .map((c) => ({ ...c, score: 1, reasons: ["Same category"] }));
+  }
+
   return scored.slice(0, limit);
 }
