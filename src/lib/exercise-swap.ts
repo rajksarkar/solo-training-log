@@ -44,6 +44,41 @@ function movementPattern(name: string): string | null {
   return null;
 }
 
+// Many exercises in the DB have empty `muscles` arrays, so we infer from the
+// exercise name as a fallback / augmentation. Returned muscles use the same
+// canonical tags as the DB: chest, back, shoulders, quads, hamstrings, biceps,
+// triceps, glutes, calves, core.
+const MUSCLE_RULES: Array<{ test: RegExp; muscles: string[] }> = [
+  { test: /\b(bench press|chest press|push.?up|pushup|dip|pec|fly|flye|crossover)\b/i, muscles: ["chest", "triceps", "shoulders"] },
+  { test: /\b(incline (db|dumbbell|barbell) press|incline press|incline bench)\b/i, muscles: ["chest", "shoulders", "triceps"] },
+  { test: /\b(overhead press|ohp|military press|shoulder press|arnold|push press|landmine press)\b/i, muscles: ["shoulders", "triceps"] },
+  { test: /\b(lateral raise|side raise|lateral delt|upright row)\b/i, muscles: ["shoulders"] },
+  { test: /\b(face pull|rear delt|reverse fly)\b/i, muscles: ["shoulders", "back"] },
+  { test: /\b(lat pull|pulldown|pull.?up|chin.?up)\b/i, muscles: ["back", "biceps"] },
+  { test: /\b(row|inverted row|t.?bar)\b/i, muscles: ["back", "biceps"] },
+  { test: /\b(shrug)\b/i, muscles: ["back", "shoulders"] },
+  { test: /\b(deadlift|rdl|romanian|good.?morning)\b/i, muscles: ["hamstrings", "glutes", "back"] },
+  { test: /\b(hip thrust|glute bridge|pull.?through|kettlebell swing)\b/i, muscles: ["glutes", "hamstrings"] },
+  { test: /\b(back squat|front squat|goblet squat|zercher|hack squat|leg press)\b/i, muscles: ["quads", "glutes"] },
+  { test: /\bsquat\b/i, muscles: ["quads", "glutes"] },
+  { test: /\b(lunge|split squat|step.?up|bulgarian)\b/i, muscles: ["quads", "glutes"] },
+  { test: /\b(leg extension|sissy squat)\b/i, muscles: ["quads"] },
+  { test: /\b(leg curl|hamstring curl|nordic)\b/i, muscles: ["hamstrings"] },
+  { test: /\b(calf|heel raise)\b/i, muscles: ["calves"] },
+  { test: /\b(tricep|pushdown|skull.?crush|close.?grip bench|kickback|overhead extension)\b/i, muscles: ["triceps"] },
+  { test: /\b(bicep|preacher|hammer curl|concentration)\b/i, muscles: ["biceps"] },
+  { test: /\bcurl\b/i, muscles: ["biceps"] },
+  { test: /\b(plank|crunch|sit.?up|ab wheel|rollout|hollow|dead.?bug|bird.?dog|pallof|woodchop|russian twist|leg raise|v.?up|mountain climber|bear crawl)\b/i, muscles: ["core"] },
+];
+
+function inferMusclesFromName(name: string): string[] {
+  const lower = name.toLowerCase();
+  for (const rule of MUSCLE_RULES) {
+    if (rule.test.test(lower)) return rule.muscles;
+  }
+  return [];
+}
+
 function toStringArray(val: unknown): string[] {
   if (!Array.isArray(val)) return [];
   return val.filter((v): v is string => typeof v === "string").map((v) => v.toLowerCase());
@@ -66,19 +101,21 @@ export function normalizeExercise(e: {
   equipment?: unknown;
   muscles?: unknown;
 }): SwapExercise {
+  const dbMuscles = toStringArray(e.muscles);
+  const muscles =
+    dbMuscles.length > 0 ? dbMuscles : inferMusclesFromName(e.name);
   return {
     id: e.id,
     name: e.name,
     category: e.category,
     equipment: toStringArray(e.equipment),
-    muscles: toStringArray(e.muscles),
+    muscles,
   };
 }
 
 export function scoreSwap(source: SwapExercise, cand: SwapExercise): SwapCandidate | null {
   if (cand.id === source.id) return null;
   if (cand.category !== source.category) return null;
-  if (cand.muscles.length === 0 || source.muscles.length === 0) return null;
 
   const reasons: string[] = [];
   let score = 0;
@@ -102,13 +139,13 @@ export function scoreSwap(source: SwapExercise, cand: SwapExercise): SwapCandida
     reasons.push(`Overlap: ${shared.join(", ")}`);
   }
 
-  // Movement pattern: +20 when matching, heavy penalty otherwise to prevent
+  // Movement pattern: +25 when matching, heavy penalty otherwise to prevent
   // bench-press <-> overhead-press style mis-swaps.
   const srcPattern = movementPattern(source.name);
   const candPattern = movementPattern(cand.name);
   if (srcPattern && candPattern) {
     if (srcPattern === candPattern) {
-      score += 20;
+      score += 25;
       reasons.push(`Same pattern (${srcPattern.replace(/-/g, " ")})`);
     } else {
       score -= 30;
@@ -121,6 +158,8 @@ export function scoreSwap(source: SwapExercise, cand: SwapExercise): SwapCandida
     score += 5;
   }
 
+  // If we have nothing at all — no muscle signal AND no pattern signal — skip.
+  // Otherwise keep even weak matches so every exercise has at least some options.
   if (score <= 0) return null;
   return { ...cand, score, reasons };
 }
