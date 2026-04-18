@@ -23,7 +23,44 @@ export async function PATCH(
 
   try {
     const body = await request.json();
-    const { notes, order } = body;
+    const { notes, order, exerciseId } = body;
+
+    // Swap path: change the underlying exercise and clear now-meaningless set logs.
+    if (typeof exerciseId === "string" && exerciseId.length > 0) {
+      const current = await prisma.sessionExercise.findUnique({
+        where: { id: seId },
+        include: { exercise: true },
+      });
+      if (!current || current.sessionId !== sessionId) {
+        return NextResponse.json({ error: "Session exercise not found" }, { status: 404 });
+      }
+
+      const target = await prisma.exercise.findFirst({
+        where: {
+          id: exerciseId,
+          OR: [{ ownerId: null }, { ownerId: session.user.id }],
+        },
+      });
+      if (!target) {
+        return NextResponse.json({ error: "Target exercise not found" }, { status: 404 });
+      }
+      if (target.category !== current.exercise.category) {
+        return NextResponse.json(
+          { error: "Cannot swap across categories" },
+          { status: 400 }
+        );
+      }
+
+      const [, updated] = await prisma.$transaction([
+        prisma.setLog.deleteMany({ where: { sessionExerciseId: seId } }),
+        prisma.sessionExercise.update({
+          where: { id: seId },
+          data: { exerciseId },
+          include: { exercise: true, setLogs: true },
+        }),
+      ]);
+      return NextResponse.json(updated);
+    }
 
     const updated = await prisma.sessionExercise.update({
       where: { id: seId },

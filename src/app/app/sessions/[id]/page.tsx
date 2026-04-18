@@ -22,6 +22,7 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  Repeat,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -343,6 +344,14 @@ export default function SessionLogPage() {
   const [moveOpen, setMoveOpen] = useState(false);
   const [moveDate, setMoveDate] = useState("");
 
+  // Swap exercise
+  const [swapTargetSeId, setSwapTargetSeId] = useState<string | null>(null);
+  const [swapCandidates, setSwapCandidates] = useState<
+    Array<{ id: string; name: string; category: string; score: number; reasons: string[] }>
+  >([]);
+  const [swapLoading, setSwapLoading] = useState(false);
+  const [swapSubmitting, setSwapSubmitting] = useState(false);
+
   const fetchSession = useCallback(async () => {
     const res = await fetch(`/api/sessions/${id}`);
     if (!res.ok) {
@@ -620,6 +629,45 @@ export default function SessionLogPage() {
     if (!confirm("Remove this exercise?")) return;
     await fetch(`/api/sessions/${id}/exercises/${seId}`, { method: "DELETE" });
     fetchSession();
+  }
+
+  async function openSwap(seId: string) {
+    setSwapTargetSeId(seId);
+    setSwapCandidates([]);
+    setSwapLoading(true);
+    try {
+      const res = await fetch(`/api/sessions/${id}/exercises/${seId}/swap-candidates`);
+      if (res.ok) {
+        const data = await res.json();
+        setSwapCandidates(data.candidates ?? []);
+      }
+    } finally {
+      setSwapLoading(false);
+    }
+  }
+
+  async function performSwap(newExerciseId: string) {
+    if (!swapTargetSeId) return;
+    setSwapSubmitting(true);
+    const seId = swapTargetSeId;
+    try {
+      const res = await fetch(`/api/sessions/${id}/exercises/${seId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ exerciseId: newExerciseId }),
+      });
+      if (res.ok) {
+        setLocalLogs((prev) => {
+          const next = { ...prev };
+          delete next[seId];
+          return next;
+        });
+        setSwapTargetSeId(null);
+        await fetchSession();
+      }
+    } finally {
+      setSwapSubmitting(false);
+    }
   }
 
   async function moveExercise(seId: string, direction: "up" | "down") {
@@ -952,6 +1000,17 @@ export default function SessionLogPage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
+                          openSwap(se.id);
+                        }}
+                        className="p-1.5 rounded-md text-text-muted hover:text-primary hover:bg-primary/10 transition-colors"
+                        aria-label="Swap exercise"
+                        title="Swap exercise"
+                      >
+                        <Repeat className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
                           removeExercise(se.id);
                         }}
                         className="p-1.5 rounded-md text-text-muted hover:text-error hover:bg-error/10 transition-colors"
@@ -1200,6 +1259,54 @@ export default function SessionLogPage() {
               <p className="py-8 text-center text-text-secondary text-sm">No matching exercises</p>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Swap Exercise Dialog */}
+      <Dialog open={swapTargetSeId !== null} onOpenChange={(o) => { if (!o) setSwapTargetSeId(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Swap Exercise
+              {swapTargetSeId && (
+                <span className="block text-xs font-normal text-text-secondary mt-1">
+                  Replacing: {session.exercises.find((e) => e.id === swapTargetSeId)?.exercise.name}
+                </span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[55vh] overflow-y-auto -mx-2 px-2 space-y-1">
+            {swapLoading ? (
+              <p className="py-8 text-center text-text-secondary text-sm">Finding alternatives...</p>
+            ) : swapCandidates.length === 0 ? (
+              <p className="py-8 text-center text-text-secondary text-sm">No matching alternatives found</p>
+            ) : (
+              swapCandidates.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  disabled={swapSubmitting}
+                  onClick={() => performSwap(c.id)}
+                  className="flex w-full items-start justify-between gap-3 rounded-lg px-3 py-3 text-left hover:bg-primary/10 active:bg-primary/15 disabled:opacity-50 transition-colors min-h-[48px]"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-sm text-text truncate">{c.name}</div>
+                    {c.reasons.length > 0 && (
+                      <div className="text-[11px] text-text-secondary mt-0.5 capitalize">
+                        {c.reasons.join(" · ")}
+                      </div>
+                    )}
+                  </div>
+                  <span className="shrink-0 text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-md tabular-nums">
+                    {c.score}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+          <p className="text-[11px] text-text-muted">
+            Swapping will clear any set logs on this exercise.
+          </p>
         </DialogContent>
       </Dialog>
 
