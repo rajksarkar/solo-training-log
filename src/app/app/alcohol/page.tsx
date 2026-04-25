@@ -223,8 +223,11 @@ function getLevel(xp: number) {
 
 function recalcStreak(tasks: Record<string, boolean>): number {
   const currentDay = daysSinceStart();
+  // If today's sober box isn't ticked yet, count from yesterday — otherwise
+  // a perfect 13-day streak shows as 0 every morning until you check in.
+  const startDay = tasks[`day-${currentDay}-sober`] ? currentDay : currentDay - 1;
   let streak = 0;
-  for (let d = currentDay; d >= 1; d--) {
+  for (let d = startDay; d >= 1; d--) {
     if (tasks[`day-${d}-sober`]) streak++;
     else break;
   }
@@ -279,6 +282,18 @@ export default function AlcoholPage() {
       }
 
       if (serverData) {
+        // Streak / savings are derived from `tasks` and depend on today's
+        // date, so always recompute them at load time — otherwise a stale
+        // saved value (e.g. saved when today was unchecked) shadows the
+        // real streak forever.
+        const streak = recalcStreak(serverData.tasks ?? {});
+        const savings = recalcSavings(streak);
+        serverData = {
+          ...serverData,
+          streak,
+          maxStreak: Math.max(serverData.maxStreak ?? 0, streak),
+          ...savings,
+        };
         setState(serverData);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(serverData));
         hydratedFromServerRef.current = true;
