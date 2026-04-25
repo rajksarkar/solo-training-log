@@ -391,7 +391,7 @@ ${top10.map((p, i) => `  <div class="top-pr-row"><span class="top-pr-rank">${i +
   <p style="font-size: 13px; color: #374151; line-height: 1.6;">
     <strong>Plan:</strong> Observing current program. No changes prescribed.<br><br>
     <strong>Volume trend:</strong> ${volDelta >= 0 ? "Up" : "Down"} ${Math.abs(volDelta).toFixed(1)}% week-over-week. ${volDelta > 15 ? "Consider whether this rate of increase is sustainable with current recovery." : volDelta > 0 ? "Steady progression." : "Monitor — may need adjustment if trend continues."}<br><br>
-    <strong>Next assessment:</strong> Next Sunday @ 6 PM
+    <strong>Next assessment:</strong> Next Sunday @ 9 PM
   </p>
 </div>
 
