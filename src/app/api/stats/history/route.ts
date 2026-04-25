@@ -10,10 +10,12 @@ export async function GET() {
 
   const userId = session.user.id;
 
-  // Get all session exercises with set logs for exercise rankings
+  // Get session exercises that have at least one completed set — scheduled
+  // exercises with no logged work shouldn't appear in history rankings.
   const sessionExercises = await prisma.sessionExercise.findMany({
     where: {
       session: { ownerId: userId },
+      setLogs: { some: { completed: true } },
     },
     select: {
       exerciseId: true,

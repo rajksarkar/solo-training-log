@@ -27,7 +27,8 @@ type Session = {
   title: string;
   category: string;
   date: string;
-  exercises: { id: string }[];
+  endedAt?: string | null;
+  exercises: { id: string; setLogs?: { completed: boolean }[] }[];
 };
 
 type ExerciseRanking = {
@@ -88,7 +89,14 @@ export default function HistoryPage() {
     loadHistory();
   }, []);
 
-  const filtered = sessions.filter((s) =>
+  // History should only surface sessions that were actually performed —
+  // scheduled-but-never-logged sessions stay off the list.
+  const completedSessions = sessions.filter((s) => {
+    if (s.endedAt) return true;
+    return s.exercises?.some((ex) => ex.setLogs?.some((l) => l.completed));
+  });
+
+  const filtered = completedSessions.filter((s) =>
     search
       ? s.title.toLowerCase().includes(search.toLowerCase()) ||
         s.category.toLowerCase().includes(search.toLowerCase())
@@ -125,7 +133,7 @@ export default function HistoryPage() {
       <div>
         <h1 className="text-xl font-bold text-text">History</h1>
         <p className="text-xs text-text-secondary mt-0.5">
-          {sessions.length} total workouts
+          {completedSessions.length} total workouts
         </p>
       </div>
 

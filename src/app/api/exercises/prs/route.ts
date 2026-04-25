@@ -10,11 +10,20 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const exerciseIds = searchParams.get("exerciseIds")?.split(",").filter(Boolean);
+  const excludeSessionId = searchParams.get("excludeSessionId");
 
-  // Get all completed set logs with weight data for the user's exercises
+  // Get all completed set logs with weight data for the user's exercises.
+  // When viewing a session in progress, exclude that session's own sets so the
+  // PR badge reflects the historical best (otherwise the just-saved set
+  // becomes the new best and the badge vanishes after autosave).
+  const sessionFilter: Record<string, unknown> = { ownerId: session.user.id };
+  if (excludeSessionId) {
+    sessionFilter.id = { not: excludeSessionId };
+  }
+
   const where: Record<string, unknown> = {
     sessionExercise: {
-      session: { ownerId: session.user.id },
+      session: sessionFilter,
     },
     completed: true,
     weight: { not: null, gt: 0 },

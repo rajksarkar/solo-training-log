@@ -430,10 +430,13 @@ export default function SessionLogPage() {
     setLocalLogs(logs);
     setExpandedExercises(new Set(data.exercises.map((e: SessionExercise) => e.id)));
 
-    // Fetch PRs for exercises in this session
+    // Fetch PRs for exercises in this session, excluding this session's own
+    // sets so the badge reflects the historical best — otherwise a newly
+    // logged PR set becomes the "current best" after autosave and the badge
+    // disappears.
     const exerciseIds = data.exercises.map((e: SessionExercise) => e.exerciseId);
     if (exerciseIds.length > 0) {
-      fetch(`/api/exercises/prs?exerciseIds=${exerciseIds.join(",")}`)
+      fetch(`/api/exercises/prs?exerciseIds=${exerciseIds.join(",")}&excludeSessionId=${id}`)
         .then((r) => r.json())
         .then(setPrMap)
         .catch(() => {});
