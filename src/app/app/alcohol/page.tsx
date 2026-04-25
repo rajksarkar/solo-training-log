@@ -245,6 +245,7 @@ function recalcSavings(streak: number) {
 export default function AlcoholPage() {
   const [state, setState] = useState<AppState>(defaultState);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activePhase, setActivePhase] = useState(1);
   const [openWeeks, setOpenWeeks] = useState<Record<string, boolean>>({});
   const [showEmergency, setShowEmergency] = useState(false);
@@ -252,54 +253,89 @@ export default function AlcoholPage() {
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stateRef = useRef(state);
   stateRef.current = state;
+  // Gates server saves until we've successfully loaded — prevents an empty
+  // default state from overwriting the real server record after a load blip.
+  const hydratedFromServerRef = useRef(false);
 
-  // Load from server (with localStorage migration)
+  // Load from server, falling back to localStorage on any failure. We never
+  // clear localStorage so it acts as a permanent offline cache — that's the
+  // only thing standing between a transient network blip and the user seeing
+  // their scores reset to zero.
   useEffect(() => {
     async function load() {
+      let serverData: AppState | null = null;
+      let serverReachable = false;
       try {
         const res = await fetch(`/api/user-state/${API_KEY}`);
         if (res.ok) {
-          const { data } = await res.json();
-          if (data) {
-            setState({ ...defaultState, ...data });
-            // Clear localStorage since server is now the source of truth
-            localStorage.removeItem(STORAGE_KEY);
-            setLoaded(true);
-            return;
+          serverReachable = true;
+          const json = await res.json();
+          if (json?.data && typeof json.data === "object") {
+            serverData = { ...defaultState, ...json.data };
           }
         }
       } catch {
-        // Server unreachable — fall back to localStorage
+        // Network failure — leave serverReachable=false so we fall back below
       }
 
-      // No server data — check localStorage for migration
+      if (serverData) {
+        setState(serverData);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(serverData));
+        hydratedFromServerRef.current = true;
+        setLoaded(true);
+        return;
+      }
+
+      // No server data: try localStorage cache.
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         try {
           const parsed = { ...defaultState, ...JSON.parse(raw) };
           setState(parsed);
-          // Migrate to server
-          fetch(`/api/user-state/${API_KEY}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ data: parsed }),
-          }).then(() => localStorage.removeItem(STORAGE_KEY)).catch(() => {});
+          if (serverReachable) {
+            // Server is up but had no record — migrate cache up. Treat this
+            // as a successful hydration so subsequent edits can save.
+            hydratedFromServerRef.current = true;
+            fetch(`/api/user-state/${API_KEY}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ data: parsed }),
+            }).catch(() => {});
+          } else {
+            // Server unreachable — surface a soft warning but keep the cache
+            // visible. Saves stay blocked until a successful server round-trip
+            // so we don't clobber the real record with stale data.
+            setLoadError("Offline — showing cached scores. Changes will sync when reconnected.");
+          }
+          setLoaded(true);
+          return;
         } catch {
-          setState(defaultState);
+          // Corrupt cache — fall through
         }
       }
-      setLoaded(true);
+
+      // Truly empty: server reachable + no record + no cache → fresh user.
+      // Server unreachable + no cache → can't render anything meaningful.
+      if (serverReachable) {
+        hydratedFromServerRef.current = true;
+        setLoaded(true);
+      } else {
+        setLoadError("Couldn't load your progress. Check your connection and refresh.");
+      }
     }
     load();
   }, []);
 
-  // Save to server (debounced) with localStorage as write-through cache
+  // Save to server (debounced) with localStorage as a permanent write-through
+  // cache. localStorage is never cleared on success — it's the safety net for
+  // the next page load if the server blips.
   const save = useCallback(
     (next: AppState) => {
       setState(next);
-      // Write-through to localStorage for instant reads if page reloads mid-save
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      // Debounce server save
+      // If we never confirmed a server hydration, don't push a save — the
+      // current state may not reflect the real server record.
+      if (!hydratedFromServerRef.current) return;
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
       saveTimeoutRef.current = setTimeout(async () => {
         try {
@@ -308,10 +344,8 @@ export default function AlcoholPage() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ data: stateRef.current }),
           });
-          // Server saved successfully — clear localStorage cache
-          localStorage.removeItem(STORAGE_KEY);
         } catch {
-          // Server unreachable — localStorage keeps the data safe until next save
+          // Server unreachable — localStorage still has the data
         }
         saveTimeoutRef.current = null;
       }, 1000);
@@ -431,14 +465,35 @@ export default function AlcoholPage() {
 
   if (!loaded) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="flex flex-col items-center justify-center py-20 gap-4 px-6 text-center">
+        {loadError ? (
+          <>
+            <AlertTriangle className="h-8 w-8 text-warning" />
+            <p className="text-sm text-text-secondary max-w-xs">{loadError}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 rounded-lg bg-primary text-on-primary text-sm font-bold hover:opacity-90 transition-opacity"
+            >
+              Retry
+            </button>
+          </>
+        ) : (
+          <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        )}
       </div>
     );
   }
 
   return (
     <div className="space-y-5 pb-4">
+      {/* Offline banner */}
+      {loadError && (
+        <div className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span>{loadError}</span>
+        </div>
+      )}
+
       {/* Badge Toast */}
       {badgeToast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-surface border-2 border-primary rounded-xl px-5 py-3 shadow-elevated animate-fade-up">
