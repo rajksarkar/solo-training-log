@@ -24,6 +24,13 @@ type ExerciseDetailDialogProps = {
   onOpenChange: (open: boolean) => void;
 };
 
+// Parse a YYYY-MM-DD calendar date as local time. Bare new Date(ymd)
+// treats it as UTC midnight, which displays as the previous day in any
+// negative-UTC zone.
+function parseLocalDate(ymd: string): Date {
+  return new Date(`${ymd}T00:00:00`);
+}
+
 type HistoryEntry = {
   date: string;
   sessionId: string;
@@ -215,7 +222,7 @@ export function ExerciseDetailDialog({
                 >
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-sm font-bold text-text">
-                      {new Date(entry.date).toLocaleDateString("en-US", {
+                      {parseLocalDate(entry.date).toLocaleDateString("en-US", {
                         weekday: "short",
                         month: "short",
                         day: "numeric",

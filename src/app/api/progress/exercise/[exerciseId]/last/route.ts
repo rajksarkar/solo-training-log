@@ -13,13 +13,20 @@ export async function GET(
 
   const { exerciseId } = await params;
 
+  // Most recent session that actually had this exercise performed
+  // (at least one ticked-off set). Planned-but-unfinished sessions
+  // shouldn't masquerade as the user's "last" performance.
   const se = await prisma.sessionExercise.findFirst({
     where: {
       exerciseId,
       session: { ownerId: session.user.id },
+      setLogs: { some: { completed: true } },
     },
     include: {
-      setLogs: { orderBy: { setIndex: "asc" } },
+      setLogs: {
+        where: { completed: true },
+        orderBy: { setIndex: "asc" },
+      },
     },
     orderBy: { session: { date: "desc" } },
   });

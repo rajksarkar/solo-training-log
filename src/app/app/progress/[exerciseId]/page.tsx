@@ -15,6 +15,13 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
+// Parse a YYYY-MM-DD calendar date as local time. `new Date("2026-04-28")`
+// treats the string as UTC midnight, which displays as the previous day in
+// any negative-UTC zone — appending T00:00:00 forces local-time parsing.
+function parseLocalDate(ymd: string): Date {
+  return new Date(`${ymd}T00:00:00`);
+}
+
 type DataPoint = {
   date: string;
   sessionId: string;
@@ -182,7 +189,7 @@ export default function ProgressPage() {
                     dataKey="date"
                     tick={{ fontSize: 10, fill: "#8E8E93" }}
                     tickFormatter={(v) =>
-                      new Date(v).toLocaleDateString(undefined, {
+                      parseLocalDate(v).toLocaleDateString(undefined, {
                         month: "short",
                         day: "numeric",
                       })
@@ -198,7 +205,7 @@ export default function ProgressPage() {
                   <Tooltip
                     formatter={(value: number) => [value, ""]}
                     labelFormatter={(label) =>
-                      new Date(label).toLocaleDateString()
+                      parseLocalDate(label as string).toLocaleDateString()
                     }
                     contentStyle={{
                       background: "#1C1C22",
@@ -281,7 +288,7 @@ export default function ProgressPage() {
                   href={`/app/sessions/${d.sessionId}`}
                   className="text-sm text-text-secondary hover:text-primary transition-colors"
                 >
-                  {new Date(d.date).toLocaleDateString(undefined, {
+                  {parseLocalDate(d.date).toLocaleDateString(undefined, {
                     weekday: "short",
                     month: "short",
                     day: "numeric",
