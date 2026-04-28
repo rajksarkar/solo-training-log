@@ -73,7 +73,13 @@ export async function GET(request: Request) {
     },
   });
 
-  // Count completed sets per muscle
+  // Fractional set credit per muscle (Renaissance Periodization model):
+  // - Primary mover (first muscle on the exercise) gets full credit (1.0x)
+  // - Secondary movers (remaining muscles) get half credit (0.5x)
+  // This avoids over-attributing triceps/shoulders volume from every bench press.
+  const PRIMARY_WEIGHT = 1.0;
+  const SECONDARY_WEIGHT = 0.5;
+
   const muscleSets = new Map<string, number>();
   let totalSets = 0;
   let sessionsCompleted = 0;
@@ -89,18 +95,37 @@ export async function GET(request: Request) {
       const rawMuscles = se.exercise.muscles as unknown;
       const muscles: string[] = Array.isArray(rawMuscles) ? rawMuscles : [];
 
-      // Count completed sets for this exercise
-      const completedCount = se.setLogs.filter((l) => l.completed).length;
+      // Count completed "hard sets" for this exercise.
+      // A hard set is RPE >= 6 (RIR <= 4) — warm-ups don't drive hypertrophy.
+      // Treat unrecorded RPE as a working set so legacy data isn't excluded.
+      const completedCount = se.setLogs.filter((l) => {
+        if (!l.completed) return false;
+        if (l.rpe == null) return true;
+        return Number(l.rpe) >= 6;
+      }).length;
       if (completedCount === 0) continue;
 
       sessionHasCompletedSets = true;
       totalSets += completedCount;
 
-      // Attribute completed sets to each muscle
-      for (const rawMuscle of muscles) {
+      // Resolve per-exercise muscle credit, taking the max weight when
+      // multiple raw muscles collapse to the same canonical group
+      // (e.g. "lats" + "rhomboids" both → "back" — credit the back once
+      // at primary weight, not 1.0 + 0.5).
+      const exerciseWeights = new Map<string, number>();
+      muscles.forEach((rawMuscle, idx) => {
         const muscle = normalizeMuscle(rawMuscle);
-        if (!muscle) continue;
-        muscleSets.set(muscle, (muscleSets.get(muscle) ?? 0) + completedCount);
+        if (!muscle) return;
+        const weight = idx === 0 ? PRIMARY_WEIGHT : SECONDARY_WEIGHT;
+        const existing = exerciseWeights.get(muscle) ?? 0;
+        if (weight > existing) exerciseWeights.set(muscle, weight);
+      });
+
+      for (const [muscle, weight] of exerciseWeights) {
+        muscleSets.set(
+          muscle,
+          (muscleSets.get(muscle) ?? 0) + completedCount * weight,
+        );
       }
     }
 
@@ -109,9 +134,10 @@ export async function GET(request: Request) {
     }
   }
 
-  // Build sorted result
+  // Build sorted result. Round to 0.5 increments so the UI shows clean
+  // values like 7, 7.5, 11 instead of binary-fp noise.
   const byMuscle = Array.from(muscleSets.entries())
-    .map(([muscle, sets]) => ({ muscle, sets }))
+    .map(([muscle, sets]) => ({ muscle, sets: Math.round(sets * 2) / 2 }))
     .sort((a, b) => b.sets - a.sets);
 
   return NextResponse.json({
