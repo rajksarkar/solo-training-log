@@ -11,6 +11,7 @@ import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { readFileSync } from "fs";
 import { resolve } from "path";
+import { lookupMuscles } from "./muscle-map";
 
 const prisma = new PrismaClient();
 
@@ -339,7 +340,7 @@ async function main() {
           name,
           category: category as any,
           equipment: [],
-          muscles: [],
+          muscles: lookupMuscles(name),
           instructions: "",
         },
       });
