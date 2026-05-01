@@ -28,6 +28,16 @@ function normalizeMuscle(raw: string): string | null {
 
 const STRENGTH_CATEGORIES = new Set(["strength", "plyometrics"]);
 
+/** Format a Date as a Monday-of-week YYYY-MM-DD string. */
+function mondayStr(d: Date): string {
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const mon = new Date(d);
+  mon.setDate(d.getDate() + diff);
+  mon.setHours(0, 0, 0, 0);
+  return `${mon.getFullYear()}-${String(mon.getMonth() + 1).padStart(2, "0")}-${String(mon.getDate()).padStart(2, "0")}`;
+}
+
 export async function GET(request: Request) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -54,14 +64,17 @@ export async function GET(request: Request) {
   sunday.setDate(monday.getDate() + 6);
   sunday.setHours(23, 59, 59, 999);
 
-  // Format Monday as YYYY-MM-DD for the response
-  const mondayStr = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
+  const responseMonday = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
 
-  // Query all sessions for the week with exercises, set logs, and exercise data
+  // Pull a 5-week window so we can show a trailing-4-week tonnage trend
+  // alongside the current week's full breakdown.
+  const trendStart = new Date(monday);
+  trendStart.setDate(monday.getDate() - 28);
+
   const sessions = await prisma.session.findMany({
     where: {
       ownerId: session.user.id,
-      date: { gte: monday, lte: sunday },
+      date: { gte: trendStart, lte: sunday },
     },
     include: {
       exercises: {
@@ -81,37 +94,53 @@ export async function GET(request: Request) {
   const SECONDARY_WEIGHT = 0.5;
 
   const muscleSets = new Map<string, number>();
+  const muscleTonnage = new Map<string, number>();
   let totalSets = 0;
+  let totalTonnage = 0;
   let sessionsCompleted = 0;
+  // Map of week-start (YYYY-MM-DD Monday) → tonnage, for the trend chart.
+  const weeklyTonnage = new Map<string, number>();
 
   for (const sess of sessions) {
-    // Only count strength/plyometrics sessions
     if (!STRENGTH_CATEGORIES.has(sess.category)) continue;
 
+    const sessWeek = mondayStr(new Date(sess.date));
+    const isCurrentWeek = sessWeek === responseMonday;
     let sessionHasCompletedSets = false;
 
     for (const se of sess.exercises) {
-      // Get muscles from the exercise definition
       const rawMuscles = se.exercise.muscles as unknown;
       const muscles: string[] = Array.isArray(rawMuscles) ? rawMuscles : [];
 
-      // Count completed "hard sets" for this exercise.
       // A hard set is RPE >= 6 (RIR <= 4) — warm-ups don't drive hypertrophy.
       // Treat unrecorded RPE as a working set so legacy data isn't excluded.
-      const completedCount = se.setLogs.filter((l) => {
+      const hardSets = se.setLogs.filter((l) => {
         if (!l.completed) return false;
         if (l.rpe == null) return true;
         return Number(l.rpe) >= 6;
-      }).length;
-      if (completedCount === 0) continue;
+      });
+      if (hardSets.length === 0) continue;
+
+      // Tonnage = sum(reps × weight) over the working sets. Bodyweight or
+      // unloaded reps still count zero — tonnage explicitly measures load.
+      const exerciseTonnage = hardSets.reduce((acc, l) => {
+        const reps = l.reps ?? 0;
+        const weight = l.weight == null ? 0 : Number(l.weight);
+        return acc + reps * weight;
+      }, 0);
+
+      // Always accumulate weekly tonnage for the trend.
+      weeklyTonnage.set(sessWeek, (weeklyTonnage.get(sessWeek) ?? 0) + exerciseTonnage);
+
+      // Per-muscle and per-set breakdowns are only for the current week.
+      if (!isCurrentWeek) continue;
 
       sessionHasCompletedSets = true;
-      totalSets += completedCount;
+      totalSets += hardSets.length;
+      totalTonnage += exerciseTonnage;
 
       // Resolve per-exercise muscle credit, taking the max weight when
-      // multiple raw muscles collapse to the same canonical group
-      // (e.g. "lats" + "rhomboids" both → "back" — credit the back once
-      // at primary weight, not 1.0 + 0.5).
+      // multiple raw muscles collapse to the same canonical group.
       const exerciseWeights = new Map<string, number>();
       muscles.forEach((rawMuscle, idx) => {
         const muscle = normalizeMuscle(rawMuscle);
@@ -122,28 +151,43 @@ export async function GET(request: Request) {
       });
 
       for (const [muscle, weight] of exerciseWeights) {
-        muscleSets.set(
-          muscle,
-          (muscleSets.get(muscle) ?? 0) + completedCount * weight,
-        );
+        muscleSets.set(muscle, (muscleSets.get(muscle) ?? 0) + hardSets.length * weight);
+        muscleTonnage.set(muscle, (muscleTonnage.get(muscle) ?? 0) + exerciseTonnage * weight);
       }
     }
 
-    if (sessionHasCompletedSets) {
-      sessionsCompleted++;
-    }
+    if (isCurrentWeek && sessionHasCompletedSets) sessionsCompleted++;
   }
 
-  // Build sorted result. Round to 0.5 increments so the UI shows clean
-  // values like 7, 7.5, 11 instead of binary-fp noise.
+  // Build sorted result. Round set counts to 0.5 increments and tonnage
+  // to whole pounds so the UI shows clean values.
   const byMuscle = Array.from(muscleSets.entries())
-    .map(([muscle, sets]) => ({ muscle, sets: Math.round(sets * 2) / 2 }))
+    .map(([muscle, sets]) => ({
+      muscle,
+      sets: Math.round(sets * 2) / 2,
+      tonnage: Math.round(muscleTonnage.get(muscle) ?? 0),
+    }))
     .sort((a, b) => b.sets - a.sets);
 
+  // Build trailing trend with one entry per week, including weeks with
+  // zero tonnage so the chart preserves time spacing.
+  const tonnageTrend: { week: string; tonnage: number }[] = [];
+  for (let i = 4; i >= 0; i--) {
+    const wk = new Date(monday);
+    wk.setDate(monday.getDate() - i * 7);
+    const wkStr = mondayStr(wk);
+    tonnageTrend.push({
+      week: wkStr,
+      tonnage: Math.round(weeklyTonnage.get(wkStr) ?? 0),
+    });
+  }
+
   return NextResponse.json({
-    week: mondayStr,
+    week: responseMonday,
     sessionsCompleted,
     totalSets,
+    totalTonnage: Math.round(totalTonnage),
     byMuscle,
+    tonnageTrend,
   });
 }

@@ -13,6 +13,7 @@ import {
   Weight,
   Repeat,
   Timer,
+  Award,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,6 +60,24 @@ type LifetimeStats = {
     startedAt: string | null;
     endedAt: string | null;
   } | null;
+};
+
+type StandingsResponse = {
+  days: number;
+  profile: {
+    sex: string;
+    age: number;
+    bodyweightLb: number;
+    source: string;
+  };
+  standings: Array<{
+    name: string;
+    bands: { Beginner: number; Novice: number; Intermediate: number; Advanced: number; Elite: number };
+    estimated1RM: number | null;
+    bestSet: { reps: number; weight: number; date: string; sessionId: string; sessionTitle: string } | null;
+    level: "Beginner" | "Novice" | "Intermediate" | "Advanced" | "Elite" | null;
+    position: number | null;
+  }>;
 };
 
 const GOAL_WEIGHT = 180;
@@ -109,6 +128,7 @@ export default function ProfilePage() {
   const [bodyComp, setBodyComp] = useState<BodyCompEntry[]>([]);
   const [weightStats, setWeightStats] = useState<BodyWeightStats | null>(null);
   const [lifetimeStats, setLifetimeStats] = useState<LifetimeStats | null>(null);
+  const [standings, setStandings] = useState<StandingsResponse | null>(null);
   const [weekSessions, setWeekSessions] = useState(0);
   const [trainingDays, setTrainingDays] = useState(0);
   const [addOpen, setAddOpen] = useState(false);
@@ -151,6 +171,14 @@ export default function ProfilePage() {
     }
   }, []);
 
+  const fetchStandings = useCallback(async () => {
+    const res = await fetch("/api/standings?days=180");
+    if (res.ok) {
+      const data = await res.json();
+      setStandings(data);
+    }
+  }, []);
+
   const fetchSessionStats = useCallback(async () => {
     const today = new Date().toISOString().slice(0, 10);
     const res = await fetch(`/api/sessions?to=${today}`);
@@ -180,8 +208,9 @@ export default function ProfilePage() {
       fetchWeightStats(),
       fetchSessionStats(),
       fetchLifetimeStats(),
+      fetchStandings(),
     ]).then(() => setLoading(false));
-  }, [fetchBodyComp, fetchWeightStats, fetchSessionStats, fetchLifetimeStats]);
+  }, [fetchBodyComp, fetchWeightStats, fetchSessionStats, fetchLifetimeStats, fetchStandings]);
 
   function resetForm() {
     setFormDate(new Date().toISOString().slice(0, 10));
@@ -338,6 +367,108 @@ export default function ProfilePage() {
               <p className="text-[10px] text-text-muted uppercase tracking-wider mt-0.5">Workouts</p>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Strength Standings — where Raj stacks vs age/bodyweight peers */}
+      {standings && standings.standings.some((s) => s.estimated1RM) && (
+        <div className="rounded-xl border border-border bg-surface p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <Award className="h-5 w-5 text-primary" />
+            <h2 className="text-xl font-bold text-text">Strength Standings</h2>
+          </div>
+          <p className="text-xs text-text-muted mb-4">
+            Best estimated 1RM (Epley) over the last {standings.days} days vs Strength Level
+            standards for a {standings.profile.age}yo {standings.profile.sex}, {standings.profile.bodyweightLb} lb.
+          </p>
+
+          <div className="space-y-4">
+            {standings.standings.map((s) => {
+              const e1rm = s.estimated1RM;
+              const level = s.level;
+              const position = s.position ?? 0;
+              const levelColor =
+                level === "Elite"
+                  ? "text-primary"
+                  : level === "Advanced"
+                    ? "text-primary"
+                    : level === "Intermediate"
+                      ? "text-text"
+                      : level === "Novice"
+                        ? "text-text-secondary"
+                        : "text-text-muted";
+
+              return (
+                <div key={s.name}>
+                  <div className="flex items-baseline justify-between mb-1.5">
+                    <div className="flex items-baseline gap-2">
+                      <span className="font-bold text-text text-sm">{s.name}</span>
+                      <span className={`text-xs font-bold uppercase tracking-wider ${levelColor}`}>
+                        {level ?? "No data"}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      {e1rm != null ? (
+                        <span className="text-sm font-bold text-text tabular-nums">
+                          {e1rm} <span className="text-xs text-text-secondary font-medium">lb 1RM</span>
+                        </span>
+                      ) : (
+                        <span className="text-xs text-text-muted">No qualifying sets</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Band bar with level markers */}
+                  <div className="relative h-2.5 rounded-full bg-surface-high overflow-hidden">
+                    {/* Tier shading: each tier gets a slightly different background. */}
+                    <div className="absolute inset-y-0 left-0 w-[10%] bg-text-muted/10" />
+                    <div className="absolute inset-y-0 left-[10%] w-[20%] bg-text-muted/20" />
+                    <div className="absolute inset-y-0 left-[30%] w-[25%] bg-text-secondary/20" />
+                    <div className="absolute inset-y-0 left-[55%] w-[25%] bg-primary/20" />
+                    <div className="absolute inset-y-0 left-[80%] w-[20%] bg-primary/40" />
+                    {/* Marker for Raj's position */}
+                    {e1rm != null && (
+                      <div
+                        className="absolute top-1/2 -translate-y-1/2 w-2.5 h-4 bg-primary rounded-sm border-2 border-background shadow-lg"
+                        style={{ left: `calc(${position}% - 5px)` }}
+                      />
+                    )}
+                  </div>
+
+                  {/* Band labels with target weights */}
+                  <div className="grid grid-cols-5 gap-1 mt-1.5 text-[9px] text-text-muted">
+                    {(["Beginner", "Novice", "Intermediate", "Advanced", "Elite"] as const).map((band) => (
+                      <div key={band} className="text-center">
+                        <div className={`uppercase tracking-wider ${level === band ? "text-primary font-bold" : ""}`}>
+                          {band.slice(0, 4)}
+                        </div>
+                        <div className="tabular-nums">{s.bands[band]}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {s.bestSet && e1rm != null && (
+                    <p className="text-[10px] text-text-muted mt-1.5">
+                      Best: {s.bestSet.weight} × {s.bestSet.reps} on {formatShortDate(s.bestSet.date)}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <p className="text-[10px] text-text-muted mt-4 leading-relaxed">
+            Standards from{" "}
+            <a
+              href="https://strengthlevel.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              strengthlevel.com
+            </a>
+            , age- and bodyweight-adjusted. Bands are 5th / 20th / 50th / 80th / 95th percentile.
+          </p>
         </div>
       )}
 

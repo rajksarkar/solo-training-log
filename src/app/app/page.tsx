@@ -11,6 +11,9 @@ import {
   CheckCircle2,
   Calendar,
   BarChart3,
+  TrendingUp,
+  TrendingDown,
+  Minus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -101,6 +104,21 @@ function formatDuration(sec: number): string {
 function formatDistance(meters: number): string {
   const miles = meters / 1609.34;
   return miles >= 0.1 ? `${miles.toFixed(1)} mi` : `${meters} m`;
+}
+
+/** Format a tonnage figure (lb) as 12,345 / 12.3k / 1.2M. */
+function formatTonnage(lb: number): string {
+  if (lb >= 1_000_000) return `${(lb / 1_000_000).toFixed(1)}M`;
+  if (lb >= 10_000) return `${(lb / 1000).toFixed(0)}k`;
+  if (lb >= 1000) return `${(lb / 1000).toFixed(1)}k`;
+  return lb.toLocaleString();
+}
+
+/** Format YYYY-MM-DD Monday-of-week as a tiny "Apr 27" label for the trend chart. */
+function formatWeekLabel(weekStr: string): string {
+  const [y, m, d] = weekStr.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  return dt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 /** Summarize logged data for a single exercise across its sets. */
@@ -235,11 +253,14 @@ export default function WeeklyTrainingPage() {
   });
 
   const [volumeOpen, setVolumeOpen] = useState(false);
+  const [tonnageOpen, setTonnageOpen] = useState(false);
   const [volumeData, setVolumeData] = useState<{
     week: string;
     sessionsCompleted: number;
     totalSets: number;
-    byMuscle: { muscle: string; sets: number }[];
+    totalTonnage: number;
+    byMuscle: { muscle: string; sets: number; tonnage: number }[];
+    tonnageTrend: { week: string; tonnage: number }[];
   } | null>(null);
   const [volumeLoading, setVolumeLoading] = useState(false);
 
@@ -645,6 +666,165 @@ export default function WeeklyTrainingPage() {
           </div>
         )}
       </div>
+
+      {/* Weekly Tonnage — total load lifted, with 4-week trailing trend */}
+      {(() => {
+        if (!volumeData && !volumeLoading) return null;
+        const trend = volumeData?.tonnageTrend ?? [];
+        const current = volumeData?.totalTonnage ?? 0;
+        // Trailing 4-week average excludes the current week so the
+        // comparison is "this week vs my recent baseline."
+        const prior = trend.slice(0, -1);
+        const priorWithData = prior.filter((w) => w.tonnage > 0);
+        const trailingAvg = priorWithData.length > 0
+          ? Math.round(priorWithData.reduce((a, w) => a + w.tonnage, 0) / priorWithData.length)
+          : 0;
+        const deltaPct = trailingAvg > 0
+          ? Math.round(((current - trailingAvg) / trailingAvg) * 100)
+          : null;
+        const trendDirection = deltaPct == null
+          ? "flat"
+          : deltaPct >= 5 ? "up" : deltaPct <= -5 ? "down" : "flat";
+        const TrendIcon = trendDirection === "up"
+          ? TrendingUp
+          : trendDirection === "down" ? TrendingDown : Minus;
+        const trendColor = trendDirection === "up"
+          ? "text-primary"
+          : trendDirection === "down" ? "text-error" : "text-text-muted";
+
+        return (
+          <div className="rounded-xl border border-border bg-surface overflow-hidden">
+            <button
+              onClick={() => setTonnageOpen((o) => !o)}
+              className="w-full flex items-center justify-between p-4 hover:bg-surface-high/50 transition-colors"
+            >
+              <div className="flex items-center gap-2.5">
+                <Dumbbell className="h-4.5 w-4.5 text-primary" />
+                <span className="font-bold text-text text-sm">Weekly Tonnage</span>
+                {!volumeLoading && volumeData && (
+                  <span className="text-xs text-text-secondary">
+                    {formatTonnage(current)} lb
+                    {deltaPct != null && (
+                      <>
+                        {" "}&middot;{" "}
+                        <span className={trendColor}>
+                          {deltaPct > 0 ? "+" : ""}{deltaPct}% vs 4-wk avg
+                        </span>
+                      </>
+                    )}
+                  </span>
+                )}
+              </div>
+              <ChevronDown
+                className={`h-4 w-4 text-text-muted transition-transform duration-200 ${
+                  tonnageOpen ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+
+            {tonnageOpen && (
+              <div className="px-4 pb-4 border-t border-border">
+                {volumeLoading ? (
+                  <div className="flex items-center justify-center py-6">
+                    <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                  </div>
+                ) : !volumeData || current === 0 ? (
+                  <p className="text-sm text-text-muted py-4 text-center">
+                    No loaded sets logged this week
+                  </p>
+                ) : (
+                  <div className="space-y-4 pt-3">
+                    {/* This-week summary */}
+                    <div className="flex items-baseline justify-between gap-3">
+                      <div>
+                        <p className="text-2xl font-bold text-primary tabular-nums">
+                          {formatTonnage(current)} <span className="text-sm text-text-secondary font-medium">lb</span>
+                        </p>
+                        <p className="text-[10px] text-text-muted uppercase tracking-wider mt-0.5">
+                          this week
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <div className={`flex items-center gap-1 justify-end ${trendColor}`}>
+                          <TrendIcon className="h-3.5 w-3.5" />
+                          <span className="text-sm font-bold tabular-nums">
+                            {deltaPct == null ? "—" : `${deltaPct > 0 ? "+" : ""}${deltaPct}%`}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-text-muted uppercase tracking-wider mt-0.5">
+                          vs 4-wk avg ({formatTonnage(trailingAvg)})
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 5-week trend bars */}
+                    <div>
+                      <div className="flex items-end gap-1.5 h-16">
+                        {trend.map((wk, i) => {
+                          const max = Math.max(...trend.map((t) => t.tonnage), 1);
+                          const heightPct = (wk.tonnage / max) * 100;
+                          const isCurrent = i === trend.length - 1;
+                          return (
+                            <div key={wk.week} className="flex-1 flex flex-col items-center gap-1">
+                              <div className="w-full flex-1 flex items-end">
+                                <div
+                                  className={`w-full rounded-t transition-all ${
+                                    isCurrent ? "bg-primary" : "bg-text-muted/40"
+                                  }`}
+                                  style={{ height: `${Math.max(heightPct, 2)}%` }}
+                                  title={`${wk.week}: ${formatTonnage(wk.tonnage)} lb`}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        {trend.map((wk, i) => {
+                          const isCurrent = i === trend.length - 1;
+                          return (
+                            <div key={wk.week} className="flex-1 text-center">
+                              <span className={`text-[9px] uppercase tracking-wider ${
+                                isCurrent ? "text-primary font-bold" : "text-text-muted"
+                              }`}>
+                                {formatWeekLabel(wk.week)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Per-muscle breakdown */}
+                    {volumeData.byMuscle.some((m) => m.tonnage > 0) && (
+                      <div className="space-y-1.5 pt-2 border-t border-border">
+                        <p className="text-[10px] text-text-muted uppercase tracking-wider">
+                          By muscle group
+                        </p>
+                        {volumeData.byMuscle
+                          .filter((m) => m.tonnage > 0)
+                          .map(({ muscle, tonnage }) => (
+                            <div key={muscle} className="flex items-center justify-between text-sm py-0.5">
+                              <span className="text-text-secondary capitalize">{muscle}</span>
+                              <span className="text-text tabular-nums font-medium text-xs">
+                                {formatTonnage(tonnage)} lb
+                              </span>
+                            </div>
+                          ))}
+                      </div>
+                    )}
+
+                    <p className="text-[10px] text-text-muted leading-relaxed pt-1">
+                      Tonnage = sum of weight × reps across working sets (RPE ≥ 6).
+                      Per-muscle uses RP fractional credit (1.0× primary, 0.5× secondary).
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Create Session Dialog */}
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
