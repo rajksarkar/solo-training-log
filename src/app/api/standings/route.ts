@@ -1,19 +1,23 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { STRENGTH_STANDARDS, classifyLevel, levelPosition } from "@/lib/strength-standards";
+import {
+  STRENGTH_STANDARDS,
+  STANDARDS_REFERENCE_BW,
+  classifyLevel,
+  levelPosition,
+  scaleBandsForBodyweight,
+} from "@/lib/strength-standards";
 
 /**
  * GET /api/standings
  *
- * Returns Raj's best estimated 1RM (Epley) per major barbell lift over the
- * lookback window, alongside Strength Level percentile bands so the UI can
- * show where he stacks against age- and bodyweight-matched lifters.
+ * Returns Raj's best estimated 1RM (Epley) per tracked lift over the
+ * lookback window, alongside Strength Level percentile bands scaled to
+ * his current bodyweight so the comparison stays accurate as he cuts.
  *
  * Query params:
- *   ?days=180 — how far back to scan (default 180 = ~6 months). A wider
- *               window gives the most generous reading; a narrower window
- *               (e.g. 60) shows recent form.
+ *   ?days=180  — how far back to scan (default 180 = ~6 months)
  */
 
 const EPLEY_REP_CAP = 12; // Epley breaks down past ~12 reps; cap for safety.
@@ -32,9 +36,18 @@ export async function GET(request: Request) {
   since.setDate(since.getDate() - days);
   since.setHours(0, 0, 0, 0);
 
+  // Pull the most recent bodyweight log so the bands can be scaled to
+  // the lifter's actual current weight, not the static reference.
+  const recentBW = await prisma.bodyWeight.findFirst({
+    where: { ownerId: session.user.id },
+    orderBy: { date: "desc" },
+    select: { weight: true, date: true },
+  });
+  const bodyweightLb = recentBW?.weight ?? null;
+
   // Pull every set Raj has logged in the window for the lifts we track.
   // Filtering by name pattern in JS keeps the regex flexibility from the
-  // standards module instead of trying to translate it to SQL.
+  // standards module.
   const setLogs = await prisma.setLog.findMany({
     where: {
       completed: true,
@@ -88,26 +101,27 @@ export async function GET(request: Request) {
     }
 
     const e1rm = Math.round(bestE1RM);
+    const scaledBands = scaleBandsForBodyweight(std.bands, bodyweightLb);
     return {
       name: std.name,
-      bands: std.bands,
+      note: std.note ?? null,
+      bands: scaledBands,
       estimated1RM: e1rm > 0 ? e1rm : null,
       bestSet,
-      level: e1rm > 0 ? classifyLevel(e1rm, std.bands) : null,
-      position: e1rm > 0 ? Math.round(levelPosition(e1rm, std.bands)) : null,
+      level: e1rm > 0 ? classifyLevel(e1rm, scaledBands) : null,
+      position: e1rm > 0 ? Math.round(levelPosition(e1rm, scaledBands)) : null,
     };
   });
 
   return NextResponse.json({
     days,
     profile: {
-      // Surface what the standards are calibrated to so the UI can
-      // explain the comparison. If Raj's stats change, update these
-      // and refetch the bands from Strength Level.
       sex: "male",
       age: 50,
-      bodyweightLb: 185,
-      source: "strengthlevel.com (50yo male, 185 lb)",
+      bodyweightLb,
+      // What the published bands were calibrated to before scaling.
+      referenceBodyweightLb: STANDARDS_REFERENCE_BW,
+      source: "strengthlevel.com (50yo male, 185 lb baseline, scaled to current BW)",
     },
     standings,
   });

@@ -67,11 +67,13 @@ type StandingsResponse = {
   profile: {
     sex: string;
     age: number;
-    bodyweightLb: number;
+    bodyweightLb: number | null;
+    referenceBodyweightLb: number;
     source: string;
   };
   standings: Array<{
     name: string;
+    note: string | null;
     bands: { Beginner: number; Novice: number; Intermediate: number; Advanced: number; Elite: number };
     estimated1RM: number | null;
     bestSet: { reps: number; weight: number; date: string; sessionId: string; sessionTitle: string } | null;
@@ -379,7 +381,11 @@ export default function ProfilePage() {
           </div>
           <p className="text-xs text-text-muted mb-4">
             Best estimated 1RM (Epley) over the last {standings.days} days vs Strength Level
-            standards for a {standings.profile.age}yo {standings.profile.sex}, {standings.profile.bodyweightLb} lb.
+            standards for a {standings.profile.age}yo {standings.profile.sex}
+            {standings.profile.bodyweightLb
+              ? `, ${Math.round(standings.profile.bodyweightLb)} lb (your current weight)`
+              : ""}
+            . Bands rescale automatically as your bodyweight changes.
           </p>
 
           <div className="space-y-4">
@@ -450,6 +456,7 @@ export default function ProfilePage() {
                   {s.bestSet && e1rm != null && (
                     <p className="text-[10px] text-text-muted mt-1.5">
                       Best: {s.bestSet.weight} × {s.bestSet.reps} on {formatShortDate(s.bestSet.date)}
+                      {s.note && <span className="text-text-muted/70"> · {s.note}</span>}
                     </p>
                   )}
                 </div>
