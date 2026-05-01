@@ -259,7 +259,13 @@ export default function WeeklyTrainingPage() {
     sessionsCompleted: number;
     totalSets: number;
     totalTonnage: number;
-    byMuscle: { muscle: string; sets: number; tonnage: number }[];
+    byMuscle: {
+      muscle: string;
+      sets: number;
+      tonnage: number;
+      trailingAvgTonnage: number | null;
+      tonnageDeltaPct: number | null;
+    }[];
     tonnageTrend: { week: string; tonnage: number }[];
   } | null>(null);
   const [volumeLoading, setVolumeLoading] = useState(false);
@@ -798,19 +804,42 @@ export default function WeeklyTrainingPage() {
                     {/* Per-muscle breakdown */}
                     {volumeData.byMuscle.some((m) => m.tonnage > 0) && (
                       <div className="space-y-1.5 pt-2 border-t border-border">
-                        <p className="text-[10px] text-text-muted uppercase tracking-wider">
-                          By muscle group
-                        </p>
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] text-text-muted uppercase tracking-wider">
+                            By muscle group
+                          </p>
+                          <p className="text-[10px] text-text-muted uppercase tracking-wider">
+                            vs 4-wk avg
+                          </p>
+                        </div>
                         {volumeData.byMuscle
                           .filter((m) => m.tonnage > 0)
-                          .map(({ muscle, tonnage }) => (
-                            <div key={muscle} className="flex items-center justify-between text-sm py-0.5">
-                              <span className="text-text-secondary capitalize">{muscle}</span>
-                              <span className="text-text tabular-nums font-medium text-xs">
-                                {formatTonnage(tonnage)} lb
-                              </span>
-                            </div>
-                          ))}
+                          .map(({ muscle, tonnage, trailingAvgTonnage, tonnageDeltaPct }) => {
+                            const muscleTrendDir = tonnageDeltaPct == null
+                              ? "none"
+                              : tonnageDeltaPct >= 5 ? "up"
+                              : tonnageDeltaPct <= -5 ? "down" : "flat";
+                            const muscleTrendColor = muscleTrendDir === "up"
+                              ? "text-primary"
+                              : muscleTrendDir === "down" ? "text-error"
+                              : "text-text-muted";
+                            return (
+                              <div key={muscle} className="flex items-center justify-between text-sm py-0.5 gap-3">
+                                <span className="text-text-secondary capitalize flex-1">{muscle}</span>
+                                <span className="text-text tabular-nums font-medium text-xs w-20 text-right">
+                                  {formatTonnage(tonnage)} lb
+                                </span>
+                                <span
+                                  className={`tabular-nums text-xs font-medium w-16 text-right ${muscleTrendColor}`}
+                                  title={trailingAvgTonnage != null ? `Avg: ${formatTonnage(trailingAvgTonnage)} lb` : "No prior weeks"}
+                                >
+                                  {tonnageDeltaPct == null
+                                    ? "—"
+                                    : `${tonnageDeltaPct > 0 ? "+" : ""}${tonnageDeltaPct}%`}
+                                </span>
+                              </div>
+                            );
+                          })}
                       </div>
                     )}
 

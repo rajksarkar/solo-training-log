@@ -94,12 +94,14 @@ export async function GET(request: Request) {
   const SECONDARY_WEIGHT = 0.5;
 
   const muscleSets = new Map<string, number>();
-  const muscleTonnage = new Map<string, number>();
   let totalSets = 0;
   let totalTonnage = 0;
   let sessionsCompleted = 0;
   // Map of week-start (YYYY-MM-DD Monday) → tonnage, for the trend chart.
   const weeklyTonnage = new Map<string, number>();
+  // Map of week-start → muscle → tonnage. Used to compute the trailing
+  // 4-week average per muscle so the UI can show per-muscle deltas.
+  const weeklyMuscleTonnage = new Map<string, Map<string, number>>();
 
   for (const sess of sessions) {
     if (!STRENGTH_CATEGORIES.has(sess.category)) continue;
@@ -129,15 +131,8 @@ export async function GET(request: Request) {
         return acc + reps * weight;
       }, 0);
 
-      // Always accumulate weekly tonnage for the trend.
+      // Always accumulate weekly tonnage (total + per-muscle) for the trend.
       weeklyTonnage.set(sessWeek, (weeklyTonnage.get(sessWeek) ?? 0) + exerciseTonnage);
-
-      // Per-muscle and per-set breakdowns are only for the current week.
-      if (!isCurrentWeek) continue;
-
-      sessionHasCompletedSets = true;
-      totalSets += hardSets.length;
-      totalTonnage += exerciseTonnage;
 
       // Resolve per-exercise muscle credit, taking the max weight when
       // multiple raw muscles collapse to the same canonical group.
@@ -150,23 +145,64 @@ export async function GET(request: Request) {
         if (weight > existing) exerciseWeights.set(muscle, weight);
       });
 
+      let weekMuscleMap = weeklyMuscleTonnage.get(sessWeek);
+      if (!weekMuscleMap) {
+        weekMuscleMap = new Map<string, number>();
+        weeklyMuscleTonnage.set(sessWeek, weekMuscleMap);
+      }
       for (const [muscle, weight] of exerciseWeights) {
-        muscleSets.set(muscle, (muscleSets.get(muscle) ?? 0) + hardSets.length * weight);
-        muscleTonnage.set(muscle, (muscleTonnage.get(muscle) ?? 0) + exerciseTonnage * weight);
+        weekMuscleMap.set(muscle, (weekMuscleMap.get(muscle) ?? 0) + exerciseTonnage * weight);
+        if (isCurrentWeek) {
+          muscleSets.set(muscle, (muscleSets.get(muscle) ?? 0) + hardSets.length * weight);
+        }
+      }
+
+      if (isCurrentWeek) {
+        sessionHasCompletedSets = true;
+        totalSets += hardSets.length;
+        totalTonnage += exerciseTonnage;
       }
     }
 
     if (isCurrentWeek && sessionHasCompletedSets) sessionsCompleted++;
   }
 
+  // Compute trailing 4-week per-muscle averages from the prior weeks
+  // (excludes current week so the comparison is "this week vs my baseline").
+  const priorWeekKeys: string[] = [];
+  for (let i = 4; i >= 1; i--) {
+    const wk = new Date(monday);
+    wk.setDate(monday.getDate() - i * 7);
+    priorWeekKeys.push(mondayStr(wk));
+  }
+
+  const currentMuscleTonnage = weeklyMuscleTonnage.get(responseMonday) ?? new Map<string, number>();
+
+  function trailingAvgFor(muscle: string): number | null {
+    const observations = priorWeekKeys
+      .map((wk) => weeklyMuscleTonnage.get(wk)?.get(muscle) ?? 0)
+      .filter((v) => v > 0);
+    if (observations.length === 0) return null;
+    return observations.reduce((a, b) => a + b, 0) / observations.length;
+  }
+
   // Build sorted result. Round set counts to 0.5 increments and tonnage
   // to whole pounds so the UI shows clean values.
   const byMuscle = Array.from(muscleSets.entries())
-    .map(([muscle, sets]) => ({
-      muscle,
-      sets: Math.round(sets * 2) / 2,
-      tonnage: Math.round(muscleTonnage.get(muscle) ?? 0),
-    }))
+    .map(([muscle, sets]) => {
+      const tonnage = Math.round(currentMuscleTonnage.get(muscle) ?? 0);
+      const trailingAvg = trailingAvgFor(muscle);
+      const tonnageDeltaPct = trailingAvg != null && trailingAvg > 0
+        ? Math.round(((tonnage - trailingAvg) / trailingAvg) * 100)
+        : null;
+      return {
+        muscle,
+        sets: Math.round(sets * 2) / 2,
+        tonnage,
+        trailingAvgTonnage: trailingAvg != null ? Math.round(trailingAvg) : null,
+        tonnageDeltaPct,
+      };
+    })
     .sort((a, b) => b.sets - a.sets);
 
   // Build trailing trend with one entry per week, including weeks with
