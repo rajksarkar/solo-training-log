@@ -38,23 +38,32 @@ export async function GET() {
     orderBy: { date: "desc" },
   });
 
+  // Per-set estimate used when a session has no startedAt/endedAt (e.g. imported
+  // sessions). 3 minutes/set covers work + rest for typical strength training.
+  const SECONDS_PER_SET_ESTIMATE = 180;
+
   let totalReps = 0;
   let totalWeight = 0;
   let totalSessionTimeSec = 0;
   let sessionsWithTime = 0;
+  let sessionsEstimated = 0;
 
   for (const s of sessions) {
-    // Sum session time from startedAt/endedAt
+    let sessionDur = 0;
+    let usedActual = false;
+
     if (s.startedAt && s.endedAt) {
       const dur = (s.endedAt.getTime() - s.startedAt.getTime()) / 1000;
-      if (dur > 0 && dur < 86400) { // Sanity: less than 24h
-        totalSessionTimeSec += dur;
-        sessionsWithTime++;
+      if (dur > 0 && dur < 86400) {
+        sessionDur = dur;
+        usedActual = true;
       }
     }
 
+    let setCount = 0;
     for (const ex of s.exercises) {
       for (const log of ex.setLogs) {
+        setCount++;
         if (log.reps != null) {
           totalReps += log.reps;
         }
@@ -62,6 +71,16 @@ export async function GET() {
           totalWeight += log.reps * Number(log.weight);
         }
       }
+    }
+
+    if (!usedActual && setCount > 0) {
+      sessionDur = setCount * SECONDS_PER_SET_ESTIMATE;
+      sessionsEstimated++;
+    }
+
+    if (sessionDur > 0) {
+      totalSessionTimeSec += sessionDur;
+      if (usedActual) sessionsWithTime++;
     }
   }
 
@@ -115,6 +134,7 @@ export async function GET() {
     totalWeight: Math.round(totalWeight),
     totalSessionTimeSec: Math.round(totalSessionTimeSec),
     sessionsWithTime,
+    sessionsEstimated,
     lastWorkout,
   });
 }

@@ -48,6 +48,7 @@ type LifetimeStats = {
   totalWeight: number;
   totalSessionTimeSec: number;
   sessionsWithTime: number;
+  sessionsEstimated: number;
   lastWorkout: {
     id: string;
     title: string;
@@ -360,7 +361,7 @@ export default function ProfilePage() {
                   : "--"}
               </p>
               <p className="text-[10px] text-text-muted uppercase tracking-wider mt-0.5">
-                Session Time{lifetimeStats.sessionsWithTime > 0 ? ` (${lifetimeStats.sessionsWithTime})` : ""}
+                Session Time
               </p>
             </div>
             <div className="rounded-xl bg-surface-high p-3 text-center">
