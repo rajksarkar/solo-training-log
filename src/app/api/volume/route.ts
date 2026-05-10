@@ -86,13 +86,13 @@ export async function GET(request: Request) {
     },
   });
 
-  // Fractional set credit per muscle (Renaissance Periodization model):
-  // - Primary mover (first muscle on the exercise) gets full credit (1.0x)
-  // - Secondary movers (remaining muscles) get half credit (0.5x)
-  // This avoids over-attributing triceps/shoulders volume from every bench press.
-  const PRIMARY_WEIGHT = 1.0;
-  const SECONDARY_WEIGHT = 0.5;
-
+  // RP set-counting standard: count direct/primary work only. Secondary
+  // movers (e.g. triceps on bench, biceps on rows) are NOT given partial
+  // credit — RP's published MEV/MAV/MRV landmarks already factor in the
+  // indirect stimulus from compound movements. Adding 0.5x for secondaries
+  // double-counts the same stimulus the landmarks assume.
+  // Refs: rpstrength.com/blogs/articles/training-volume-landmarks-muscle-growth,
+  //       rpstrength.com/bicep-training-tips-hypertrophy.
   const muscleSets = new Map<string, number>();
   let totalSets = 0;
   let totalTonnage = 0;
@@ -134,26 +134,27 @@ export async function GET(request: Request) {
       // Always accumulate weekly tonnage (total + per-muscle) for the trend.
       weeklyTonnage.set(sessWeek, (weeklyTonnage.get(sessWeek) ?? 0) + exerciseTonnage);
 
-      // Resolve per-exercise muscle credit, taking the max weight when
-      // multiple raw muscles collapse to the same canonical group.
-      const exerciseWeights = new Map<string, number>();
-      muscles.forEach((rawMuscle, idx) => {
-        const muscle = normalizeMuscle(rawMuscle);
-        if (!muscle) return;
-        const weight = idx === 0 ? PRIMARY_WEIGHT : SECONDARY_WEIGHT;
-        const existing = exerciseWeights.get(muscle) ?? 0;
-        if (weight > existing) exerciseWeights.set(muscle, weight);
-      });
-
-      let weekMuscleMap = weeklyMuscleTonnage.get(sessWeek);
-      if (!weekMuscleMap) {
-        weekMuscleMap = new Map<string, number>();
-        weeklyMuscleTonnage.set(sessWeek, weekMuscleMap);
+      // Credit only the primary muscle (first non-null after normalization).
+      // Sets and tonnage are attributed at full credit (1.0x) to that muscle
+      // alone. Secondaries are deliberately ignored per RP methodology.
+      let primaryMuscle: string | null = null;
+      for (const rawMuscle of muscles) {
+        const m = normalizeMuscle(rawMuscle);
+        if (m) {
+          primaryMuscle = m;
+          break;
+        }
       }
-      for (const [muscle, weight] of exerciseWeights) {
-        weekMuscleMap.set(muscle, (weekMuscleMap.get(muscle) ?? 0) + exerciseTonnage * weight);
+
+      if (primaryMuscle) {
+        let weekMuscleMap = weeklyMuscleTonnage.get(sessWeek);
+        if (!weekMuscleMap) {
+          weekMuscleMap = new Map<string, number>();
+          weeklyMuscleTonnage.set(sessWeek, weekMuscleMap);
+        }
+        weekMuscleMap.set(primaryMuscle, (weekMuscleMap.get(primaryMuscle) ?? 0) + exerciseTonnage);
         if (isCurrentWeek) {
-          muscleSets.set(muscle, (muscleSets.get(muscle) ?? 0) + hardSets.length * weight);
+          muscleSets.set(primaryMuscle, (muscleSets.get(primaryMuscle) ?? 0) + hardSets.length);
         }
       }
 

@@ -28,17 +28,19 @@ const REPORT_EMAIL = process.env.REPORT_EMAIL ?? "raj.sarkar@gmail.com";
 
 // Volume landmarks per muscle (Renaissance Periodization: Israetel et al.).
 // Mirrors src/lib/constants.ts so the report matches the in-app view.
+// Direct sets only — landmarks already factor in indirect compound stimulus,
+// so the API credits only the primary mover per exercise.
 const VOLUME_LANDMARKS = {
   chest:      { mev: 10, mav: 18, mrv: 22 },
   back:       { mev: 10, mav: 18, mrv: 22 },
-  shoulders:  { mev: 8,  mav: 16, mrv: 22 },
+  shoulders:  { mev: 8,  mav: 16, mrv: 26 },
   quads:      { mev: 8,  mav: 16, mrv: 20 },
   hamstrings: { mev: 6,  mav: 12, mrv: 16 },
-  biceps:     { mev: 6,  mav: 14, mrv: 20 },
+  biceps:     { mev: 8,  mav: 14, mrv: 20 },
   triceps:    { mev: 6,  mav: 12, mrv: 18 },
   glutes:     { mev: 4,  mav: 12, mrv: 16 },
   calves:     { mev: 8,  mav: 16, mrv: 20 },
-  core:       { mev: 0,  mav: 16, mrv: 20 },
+  core:       { mev: 0,  mav: 20, mrv: 25 },
 };
 
 const STRENGTH_CATEGORIES = new Set(["strength", "plyometrics"]);
@@ -90,20 +92,18 @@ function scoreColor(score) {
   return "#B91C1C";                   // red
 }
 
-function computeVolumeScores(sessions) {
+function computeVolumeScores(volume) {
+  // Source of truth is the /volume endpoint: primary muscle gets 1.0× set
+  // credit, secondary movers 0.5× (Renaissance Periodization model). The
+  // report previously recomputed locally with full credit per tagged muscle,
+  // which double-counted compounds (e.g. rows credited 1× to both back AND
+  // biceps) and made every muscle look over MRV.
   const muscleSets = new Map();
-  for (const s of sessions) {
-    if (!STRENGTH_CATEGORIES.has(s.category)) continue;
-    for (const ex of s.exercises ?? []) {
-      const completed = (ex.setLogs ?? []).filter((l) => l.completed).length;
-      if (completed === 0) continue;
-      const raw = Array.isArray(ex.exercise?.muscles) ? ex.exercise.muscles : [];
-      for (const r of raw) {
-        const m = normalizeMuscle(r);
-        if (!m) continue;
-        muscleSets.set(m, (muscleSets.get(m) ?? 0) + completed);
-      }
-    }
+  const byMuscle = Array.isArray(volume?.byMuscle) ? volume.byMuscle : [];
+  for (const row of byMuscle) {
+    const m = normalizeMuscle(row.muscle);
+    if (!m) continue;
+    muscleSets.set(m, (muscleSets.get(m) ?? 0) + (Number(row.sets) || 0));
   }
 
   // Include every major muscle group so under-trained ones surface explicitly
@@ -121,11 +121,19 @@ function computeVolumeScores(sessions) {
   });
   perMuscle.sort((a, b) => b.sets - a.sets);
 
-  const overall = perMuscle.length
-    ? Math.round((perMuscle.reduce((sum, p) => sum + p.score, 0) / perMuscle.length) * 10) / 10
+  // Overall score averages only muscles that were actually trained this
+  // week. Untrained muscles still surface in the table (so calf neglect is
+  // visible) but don't drag the score down — RP doesn't publish a composite
+  // score, and averaging in zeros conflates "skipped" with "over MRV."
+  const trained = perMuscle.filter((p) => p.sets > 0);
+  const overall = trained.length
+    ? Math.round((trained.reduce((sum, p) => sum + p.score, 0) / trained.length) * 10) / 10
     : 0;
 
-  return { perMuscle, overall };
+  const inProductive = trained.filter((p) => p.sets >= p.mev && p.sets <= p.mrv).length;
+  const untrained = perMuscle.filter((p) => p.sets === 0 && p.mev > 0).map((p) => p.muscle);
+
+  return { perMuscle, overall, inProductive, trainedCount: trained.length, untrained };
 }
 
 async function loadEnv(path) {
@@ -351,6 +359,9 @@ ${(() => {
   <div class="muscle-score" style="color:${scoreColorVal};">${m.score.toFixed(1)}</div>
 </div>`;
   }).join("\n");
+  const untrainedLine = v.untrained?.length
+    ? `<div style="font-size:12px; color:#B91C1C; margin-top:8px;">Untrained this week: ${v.untrained.join(", ")}</div>`
+    : "";
   return `<h2>Volume Score (MEV / MRV)</h2>
 <div class="card">
   <div class="score-overall">
@@ -358,12 +369,16 @@ ${(() => {
     <span class="score-of">/ 10</span>
     <span class="score-tag" style="background:${overallColor}22; color:${overallColor};">${scoreLabel(v.overall)}</span>
   </div>
-  <div style="font-size:11px; color:#6B7280; margin-bottom:10px; text-transform:uppercase; letter-spacing:0.5px;">
+  <div style="font-size:12px; color:#374151; margin-bottom:10px;">
+    ${v.inProductive ?? 0} of ${v.trainedCount ?? 0} trained muscles in productive range (MEV–MRV).
+  </div>
+  ${untrainedLine}
+  <div style="font-size:11px; color:#6B7280; margin: 10px 0; text-transform:uppercase; letter-spacing:0.5px;">
     Per muscle · sets / MRV · score
   </div>
   ${muscleRows}
   <p style="font-size:11px; color:#9CA3AF; margin-top:12px; line-height:1.5;">
-    Score peaks at MAV (sweet spot), drops below MEV (under-trained) and above MRV (over-reaching). Landmarks per Renaissance Periodization (Israetel).
+    Direct sets only — RP landmarks already factor in indirect compound stimulus. Score peaks at MAV (sweet spot), drops below MEV (under-trained) and above MRV (over-reaching). Overall score averages trained muscles only. Sources: Israetel et al., <em>Scientific Principles of Hypertrophy Training</em>; rpstrength.com per-muscle guides.
   </p>
 </div>` ;
 })()}
@@ -407,11 +422,12 @@ async function main() {
   const lastMon = addDays(thisMon, -7);
   const lastSun = addDays(thisMon, -1);
 
-  const [thisWeek, lastWeek, prs, exercises] = await Promise.all([
+  const [thisWeek, lastWeek, prs, exercises, volume] = await Promise.all([
     get(`/sessions?from=${ymd(thisMon)}&to=${ymd(thisSun)}`),
     get(`/sessions?from=${ymd(lastMon)}&to=${ymd(lastSun)}`),
     get(`/exercises/prs`),
     get(`/exercises`),
+    get(`/volume?week=${ymd(thisMon)}`),
   ]);
 
   const thisWeekArr = Array.isArray(thisWeek) ? thisWeek : [];
@@ -454,7 +470,7 @@ async function main() {
   const sunStr = thisSun.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   const weekRange = `${monStr} – ${sunStr}`;
 
-  const volumeScores = computeVolumeScores(thisWeekArr);
+  const volumeScores = computeVolumeScores(volume);
 
   const html = buildHtml({ weekRange, dateStr, tw, lw, prsHit, top10, volDelta, repsDelta, volumeScores });
   const filename = `week-${dateStr}.html`;
