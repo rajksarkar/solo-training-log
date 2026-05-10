@@ -136,6 +136,31 @@ function computeVolumeScores(volume) {
   return { perMuscle, overall, inProductive, trainedCount: trained.length, untrained };
 }
 
+// Returns { weeks: [{label, monday, ymd}], muscles: [{muscle, byWeek: [{sets,tonnage}], landmark}] }.
+// One row per muscle in VOLUME_LANDMARKS order, one column per week (oldest → newest).
+function buildMuscleHistory(mondays, volumeWeeks) {
+  const weekLabels = mondays.map((m) => ({
+    label: m.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    monday: m,
+    ymd: ymd(m),
+  }));
+
+  const muscles = Object.keys(VOLUME_LANDMARKS).map((muscle) => {
+    const lm = VOLUME_LANDMARKS[muscle];
+    const byWeek = volumeWeeks.map((vol) => {
+      const byMuscle = Array.isArray(vol?.byMuscle) ? vol.byMuscle : [];
+      const row = byMuscle.find((r) => normalizeMuscle(r.muscle) === muscle);
+      return {
+        sets: row ? Number(row.sets) || 0 : 0,
+        tonnage: row ? Math.round(Number(row.tonnage) || 0) : 0,
+      };
+    });
+    return { muscle, landmark: lm, byWeek };
+  });
+
+  return { weeks: weekLabels, muscles };
+}
+
 async function loadEnv(path) {
   let text;
   try {
@@ -218,7 +243,7 @@ function weekStats(sessions) {
   return { strength, cardio, totalSets, totalReps, totalVol, sessions: sessionDetails };
 }
 
-function buildHtml({ weekRange, dateStr, tw, lw, prsHit, top10, volDelta, repsDelta, volumeScores }) {
+function buildHtml({ weekRange, dateStr, tw, lw, prsHit, top10, volDelta, repsDelta, volumeScores, muscleHistory }) {
   const deltaClass = (v) => (v > 0 ? "up" : v < 0 ? "down" : "flat");
   const deltaSign = (v) => (v > 0 ? "+" : "");
 
@@ -299,6 +324,20 @@ function buildHtml({ weekRange, dateStr, tw, lw, prsHit, top10, volDelta, repsDe
   .muscle-bar-mav { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(107,114,128,0.4); }
   .muscle-sets { font-size: 12px; color: #6B7280; text-align: right; tabular-nums: true; font-variant-numeric: tabular-nums; }
   .muscle-score { font-size: 13px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+  .hist-card { padding: 0; overflow: hidden; }
+  .hist-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .hist-table thead { background: #F9FAFB; }
+  .hist-th { padding: 10px 8px; text-align: center; font-weight: 600; color: #374151; text-transform: uppercase; letter-spacing: 0.5px; font-size: 10px; border-bottom: 1px solid #E5E7EB; }
+  .hist-th-muscle { text-align: left; padding-left: 16px; }
+  .hist-th-current { background: #FEF3C7; color: #92400E; }
+  .hist-td { padding: 10px 8px; text-align: center; border-bottom: 1px solid #F0F0F2; font-variant-numeric: tabular-nums; }
+  .hist-td-current { background: #FFFBEB; }
+  .hist-td-empty { color: #D1D5DB; }
+  .hist-table tr:last-child .hist-td, .hist-table tr:last-child .hist-muscle { border-bottom: none; }
+  .hist-muscle { padding: 10px 16px; text-align: left; color: #111827; font-weight: 600; text-transform: capitalize; border-bottom: 1px solid #F0F0F2; font-size: 13px; }
+  .hist-mrv { font-size: 10px; color: #9CA3AF; font-weight: 400; text-transform: none; letter-spacing: 0; margin-top: 2px; }
+  .hist-sets { font-size: 14px; font-weight: 700; }
+  .hist-tonnage { font-size: 10px; color: #6B7280; margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -383,6 +422,50 @@ ${(() => {
 </div>` ;
 })()}
 
+${(() => {
+  if (!muscleHistory || !muscleHistory.weeks?.length) return "";
+  const weekHeaders = muscleHistory.weeks
+    .map((w, i) => `<th class="hist-th${i === muscleHistory.weeks.length - 1 ? " hist-th-current" : ""}">${w.label}</th>`)
+    .join("");
+  const rows = muscleHistory.muscles.map((m) => {
+    const lm = m.landmark;
+    const cells = m.byWeek.map((wk, i) => {
+      if (wk.sets === 0 && wk.tonnage === 0) {
+        return `<td class="hist-td hist-td-empty${i === m.byWeek.length - 1 ? " hist-td-current" : ""}">—</td>`;
+      }
+      let color = "#9CA3AF";
+      if (wk.sets >= lm.mev && wk.sets <= lm.mrv) color = "#15803D";
+      else if (wk.sets > lm.mrv) color = "#B91C1C";
+      else if (wk.sets > 0) color = "#B8880E";
+      return `<td class="hist-td${i === m.byWeek.length - 1 ? " hist-td-current" : ""}">
+        <div class="hist-sets" style="color:${color};">${wk.sets}</div>
+        <div class="hist-tonnage">${wk.tonnage.toLocaleString()} lb</div>
+      </td>`;
+    }).join("");
+    return `<tr>
+      <td class="hist-muscle">${m.muscle}<div class="hist-mrv">MEV ${lm.mev} · MRV ${lm.mrv}</div></td>
+      ${cells}
+    </tr>`;
+  }).join("\n");
+  return `<h2>4-Week History (sets · tonnage)</h2>
+<div class="card hist-card">
+  <table class="hist-table">
+    <thead>
+      <tr>
+        <th class="hist-th hist-th-muscle">Muscle</th>
+        ${weekHeaders}
+      </tr>
+    </thead>
+    <tbody>
+      ${rows}
+    </tbody>
+  </table>
+  <p style="font-size:11px; color:#9CA3AF; margin-top:12px; line-height:1.5;">
+    Top number = direct sets (color: green = MEV–MRV, gold = under MEV, red = over MRV, gray = none). Bottom = primary-mover tonnage. Most recent week highlighted.
+  </p>
+</div>` ;
+})()}
+
 ${prsHit.length > 0 ? `<h2>PRs Hit This Week</h2>
 <div class="card"><div class="pr-list">
 ${prsHit.map((p) => `  <span class="pr-badge">🏆 ${p.name} — ${p.weight} ${p.unit} ×${p.reps}</span>`).join("\n")}
@@ -422,13 +505,18 @@ async function main() {
   const lastMon = addDays(thisMon, -7);
   const lastSun = addDays(thisMon, -1);
 
-  const [thisWeek, lastWeek, prs, exercises, volume] = await Promise.all([
+  // Pull volume for the trailing 4 weeks (current + 3 prior). The /volume
+  // endpoint already does the right per-muscle attribution, so we just fan
+  // out and merge — keeps the script as a thin reporter, not a calculator.
+  const historyMondays = [3, 2, 1, 0].map((i) => addDays(thisMon, -7 * i));
+  const [thisWeek, lastWeek, prs, exercises, ...volumeWeeks] = await Promise.all([
     get(`/sessions?from=${ymd(thisMon)}&to=${ymd(thisSun)}`),
     get(`/sessions?from=${ymd(lastMon)}&to=${ymd(lastSun)}`),
     get(`/exercises/prs`),
     get(`/exercises`),
-    get(`/volume?week=${ymd(thisMon)}`),
+    ...historyMondays.map((m) => get(`/volume?week=${ymd(m)}`)),
   ]);
+  const volume = volumeWeeks[volumeWeeks.length - 1]; // current week
 
   const thisWeekArr = Array.isArray(thisWeek) ? thisWeek : [];
   const lastWeekArr = Array.isArray(lastWeek) ? lastWeek : [];
@@ -472,7 +560,11 @@ async function main() {
 
   const volumeScores = computeVolumeScores(volume);
 
-  const html = buildHtml({ weekRange, dateStr, tw, lw, prsHit, top10, volDelta, repsDelta, volumeScores });
+  // Build the 4-week per-muscle history. Rows are muscles (in MEV-landmark
+  // order), columns are the four weeks. Cells show sets and tonnage.
+  const muscleHistory = buildMuscleHistory(historyMondays, volumeWeeks);
+
+  const html = buildHtml({ weekRange, dateStr, tw, lw, prsHit, top10, volDelta, repsDelta, volumeScores, muscleHistory });
   const filename = `week-${dateStr}.html`;
 
   const repoPath = join(REPO_DIR, "weekly-report", filename);
