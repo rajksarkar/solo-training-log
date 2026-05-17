@@ -1035,11 +1035,12 @@ export default function SessionLogPage() {
                 <div className="px-3.5 pb-3.5 pt-0 border-t border-border">
                   {inputType === "strength" ? (
                     <div className="space-y-2 mt-3">
-                      <div className="grid grid-cols-[1.2rem_1fr_1fr_2.5rem_1.5rem_1.5rem] gap-1.5 px-0.5">
+                      <div className="grid grid-cols-[1.2rem_minmax(0,1fr)_minmax(0,1.2fr)_2.5rem_2.5rem_1.5rem_1.5rem] gap-1 px-0.5">
                         <span className="text-xs font-bold uppercase text-text-muted">#</span>
                         <span className="text-xs font-bold uppercase text-text-muted">Reps</span>
                         <span className="text-xs font-bold uppercase text-text-muted">Weight</span>
-                        <span className="text-xs font-bold uppercase text-text-muted">Unit</span>
+                        <span className="text-[10px] font-bold uppercase text-text-muted">Unit</span>
+                        <span className="text-[10px] font-bold uppercase text-text-muted">RPE</span>
                         <span />
                         <span />
                       </div>
@@ -1047,16 +1048,18 @@ export default function SessionLogPage() {
                         const isNewPR = log.completed && isPR(se.exerciseId, log.reps, log.weight, prMap);
                         return (
                           <div key={log.setIndex} className="relative">
-                            <div className={`grid grid-cols-[1.2rem_1fr_1fr_2.5rem_1.5rem_1.5rem] gap-1.5 items-center ${isNewPR ? "bg-primary/5 rounded-lg -mx-1 px-1" : ""}`}>
+                            <div className={`grid grid-cols-[1.2rem_minmax(0,1fr)_minmax(0,1.2fr)_2.5rem_2.5rem_1.5rem_1.5rem] gap-1 items-center ${isNewPR ? "bg-primary/5 rounded-lg -mx-1 px-1" : ""}`}>
                               <span className="text-xs font-bold text-text-muted text-center">{log.setIndex + 1}</span>
-                              <Input type="number" placeholder="--" inputMode="numeric" value={log.reps ?? ""} className="h-10 text-sm px-2"
+                              <Input type="number" placeholder="--" inputMode="numeric" value={log.reps ?? ""} className="h-10 text-sm px-1.5"
                                 onChange={(e) => { updateLog(se.id, log.setIndex, "reps", e.target.value ? parseInt(e.target.value, 10) : null); scheduleAutosave(); }} />
-                              <Input type="number" step="0.5" placeholder="--" inputMode="decimal" value={log.weight ?? ""} className="h-10 text-sm px-2"
+                              <Input type="number" step="0.5" placeholder="--" inputMode="decimal" value={log.weight ?? ""} className="h-10 text-sm px-1.5"
                                 onChange={(e) => { updateLog(se.id, log.setIndex, "weight", e.target.value ? parseFloat(e.target.value) : null); scheduleAutosave(); }} />
                               <Select value={log.unit} onValueChange={(v) => { updateLog(se.id, log.setIndex, "unit", v); scheduleAutosave(); }}>
                                 <SelectTrigger className="h-10 px-1 text-xs"><SelectValue /></SelectTrigger>
                                 <SelectContent><SelectItem value="lb">lb</SelectItem><SelectItem value="kg">kg</SelectItem></SelectContent>
                               </Select>
+                              <Input type="number" min={1} max={10} placeholder="--" inputMode="numeric" value={log.rpe ?? ""} className="h-10 text-sm px-1.5"
+                                onChange={(e) => { updateLog(se.id, log.setIndex, "rpe", e.target.value ? parseInt(e.target.value, 10) : null); scheduleAutosave(); }} />
                               <button onClick={() => toggleComplete(se.id, log.setIndex)} className="flex items-center justify-center">
                                 {log.completed ? <CheckCircle2 className="h-5 w-5 text-success" /> : <Circle className="h-5 w-5 text-text-muted" />}
                               </button>
