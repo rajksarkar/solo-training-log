@@ -443,15 +443,40 @@ export default function ProfilePage() {
                   </div>
 
                   {/* Band labels with target weights */}
-                  <div className="grid grid-cols-5 gap-1 mt-1.5 text-[9px] text-text-muted">
-                    {(["Beginner", "Novice", "Intermediate", "Advanced", "Elite"] as const).map((band) => (
-                      <div key={band} className="text-center">
-                        <div className={`uppercase tracking-wider ${level === band ? "text-primary font-bold" : ""}`}>
-                          {band.slice(0, 4)}
+                  <div className="grid grid-cols-5 gap-1 mt-2">
+                    {(
+                      [
+                        ["Beginner", "BEG"],
+                        ["Novice", "NOV"],
+                        ["Intermediate", "INT"],
+                        ["Advanced", "ADV"],
+                        ["Elite", "ELITE"],
+                      ] as const
+                    ).map(([band, abbr]) => {
+                      const reached = e1rm != null && e1rm >= s.bands[band];
+                      const current = level === band;
+                      return (
+                        <div
+                          key={band}
+                          className={`text-center rounded-md py-1 ${current ? "bg-primary/15" : ""}`}
+                        >
+                          <div
+                            className={`text-[11px] font-bold uppercase tracking-wide ${
+                              current ? "text-primary" : reached ? "text-text-secondary" : "text-text-muted"
+                            }`}
+                          >
+                            {abbr}
+                          </div>
+                          <div
+                            className={`text-xs tabular-nums ${
+                              current ? "text-primary font-semibold" : "text-text-secondary"
+                            }`}
+                          >
+                            {s.bands[band]}
+                          </div>
                         </div>
-                        <div className="tabular-nums">{s.bands[band]}</div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   {s.bestSet && e1rm != null && (

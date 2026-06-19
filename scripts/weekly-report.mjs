@@ -45,6 +45,24 @@ const VOLUME_LANDMARKS = {
 
 const STRENGTH_CATEGORIES = new Set(["strength", "plyometrics"]);
 
+// Big compound lifts tracked for the estimated-1RM progression. Naming
+// variants in the log are consolidated so e.g. "Bench Press" and "Barbell
+// Bench Press" roll into one trend line. Colors match the dashboard.
+const LIFT_GROUPS = {
+  "Squat":       { alts: ["back squat", "barbell squat", "barbell squat to bench"], color: "#B8880E" },
+  "Bench":       { alts: ["bench press", "barbell bench press"], color: "#2563EB" },
+  "Deadlift":    { alts: ["barbell deadlift", "deadlift"], color: "#DC2626" },
+  "Trap Bar DL": { alts: ["trap bar deadlift"], color: "#16A34A" },
+  "Hip Thrust":  { alts: ["hip thrust"], color: "#7C3AED" },
+};
+const LIFT_NAMES = Object.keys(LIFT_GROUPS);
+
+function liftFor(name) {
+  const n = String(name).toLowerCase().trim();
+  for (const [lift, { alts }] of Object.entries(LIFT_GROUPS)) if (alts.includes(n)) return lift;
+  return null;
+}
+
 function normalizeMuscle(raw) {
   const m = String(raw).toLowerCase().trim();
   if (m === "forearms") return null;
@@ -211,13 +229,30 @@ async function get(path) {
   return res.json();
 }
 
+// A session counts as DONE only if there's evidence it was actually performed:
+// at least one completed set log, or the start/end timer was used. Otherwise it's
+// a planned-but-skipped session (e.g. a future-dated session with all sets unchecked).
+function isSessionCompleted(s) {
+  const hasCompletedSet = (s.exercises ?? []).some((ex) =>
+    (ex.setLogs ?? []).some((l) => l.completed)
+  );
+  return hasCompletedSet || Boolean(s.startedAt && s.endedAt);
+}
+
 function weekStats(sessions) {
   let totalSets = 0, totalReps = 0, totalVol = 0, strength = 0, cardio = 0;
+  let skipped = 0, skippedStrength = 0, skippedCardio = 0;
   const sessionDetails = [];
   for (const s of sessions) {
     const date = s.date.slice(0, 10);
-    if (["strength", "plyometrics"].includes(s.category)) strength++;
-    else cardio++;
+    const isStrength = ["strength", "plyometrics"].includes(s.category);
+    const completed = isSessionCompleted(s);
+    if (completed) {
+      if (isStrength) strength++; else cardio++;
+    } else {
+      skipped++;
+      if (isStrength) skippedStrength++; else skippedCardio++;
+    }
     let sSets = 0, sReps = 0, sVol = 0;
     const exList = [];
     for (const ex of s.exercises ?? []) {
@@ -238,12 +273,237 @@ function weekStats(sessions) {
       if (setsInfo.length) exList.push({ name: ex.exercise.name, sets: setsInfo.join(" | ") });
     }
     totalSets += sSets; totalReps += sReps; totalVol += sVol;
-    sessionDetails.push({ date, title: s.title, category: s.category, sets: sSets, reps: sReps, volume: sVol, exercises: exList });
+    sessionDetails.push({ date, title: s.title, category: s.category, sets: sSets, reps: sReps, volume: sVol, exercises: exList, completed });
   }
-  return { strength, cardio, totalSets, totalReps, totalVol, sessions: sessionDetails };
+  return { strength, cardio, skipped, skippedStrength, skippedCardio, totalSets, totalReps, totalVol, sessions: sessionDetails };
 }
 
-function buildHtml({ weekRange, dateStr, tw, lw, prsHit, top10, volDelta, repsDelta, volumeScores, muscleHistory }) {
+function weekKey(dateStr) {
+  return ymd(mondayOf(new Date(dateStr)));
+}
+
+// Full-history aggregates for the longitudinal progress sections: weekly
+// tonnage, per-muscle weekly tonnage (primary mover only — matches the
+// /volume attribution), per-lift weekly best e1RM, and cumulative totals.
+function computeHistory(sessions) {
+  const weekly = new Map();      // wk -> { tonnage, sets, sessions:Set }
+  const muscleWeek = new Map();  // wk -> Map(muscle -> tonnage)
+  const liftWeek = new Map();    // wk -> Map(lift -> best e1RM)
+  let grandTon = 0, grandSets = 0;
+
+  for (const s of sessions) {
+    if (!STRENGTH_CATEGORIES.has(s.category)) continue;
+    const wk = weekKey(s.date);
+    if (!weekly.has(wk)) weekly.set(wk, { tonnage: 0, sets: 0, sessions: new Set() });
+    const b = weekly.get(wk);
+    let counted = false;
+
+    for (const se of s.exercises ?? []) {
+      const muscles = Array.isArray(se.exercise?.muscles) ? se.exercise.muscles : [];
+      let primary = null;
+      for (const rm of muscles) { const m = normalizeMuscle(rm); if (m) { primary = m; break; } }
+      const lift = liftFor(se.exercise?.name ?? "");
+      let exTon = 0;
+
+      for (const l of se.setLogs ?? []) {
+        if (!l.completed) continue;
+        const reps = l.reps || 0;
+        const w = l.weight || 0;
+        if (reps > 0) { b.sets++; grandSets++; }
+        const t = reps * w;
+        b.tonnage += t; exTon += t; grandTon += t;
+        // Epley e1RM from clean working sets of 1-12 reps.
+        if (lift && reps >= 1 && reps <= 12 && w > 0) {
+          const e = w * (1 + reps / 30);
+          if (!liftWeek.has(wk)) liftWeek.set(wk, new Map());
+          const lm = liftWeek.get(wk);
+          if (!lm.has(lift) || e > lm.get(lift)) lm.set(lift, e);
+        }
+        counted = true;
+      }
+      if (primary && exTon > 0) {
+        if (!muscleWeek.has(wk)) muscleWeek.set(wk, new Map());
+        const mm = muscleWeek.get(wk);
+        mm.set(primary, (mm.get(primary) || 0) + exTon);
+      }
+    }
+    if (counted) b.sessions.add(s.id);
+  }
+
+  const keys = [...weekly.keys()].sort();
+  if (keys.length === 0) return null;
+
+  // Continuous Monday axis so gaps (deload/travel) show as zero-volume weeks.
+  const rows = [];
+  let d = mondayOf(new Date(keys[0] + "T12:00:00"));
+  const lastM = mondayOf(new Date(keys[keys.length - 1] + "T12:00:00"));
+  while (d <= lastM) {
+    const wk = ymd(d);
+    const b = weekly.get(wk);
+    rows.push({ week: wk, tonnage: b ? Math.round(b.tonnage) : 0, sets: b ? b.sets : 0, sessions: b ? b.sessions.size : 0 });
+    d = addDays(d, 7);
+  }
+
+  const muscleWeekly = {};
+  for (const m of Object.keys(VOLUME_LANDMARKS)) {
+    muscleWeekly[m] = rows.map((r) => Math.round(muscleWeek.get(r.week)?.get(m) || 0));
+  }
+
+  const liftWeekly = {};
+  for (const lift of LIFT_NAMES) {
+    liftWeekly[lift] = rows.map((r) => {
+      const v = liftWeek.get(r.week)?.get(lift);
+      return v != null ? Math.round(v) : null;
+    });
+  }
+
+  const liftSummary = LIFT_NAMES.map((lift) => {
+    const series = liftWeekly[lift];
+    const obs = series.map((v, i) => ({ v, i })).filter((o) => o.v != null);
+    if (!obs.length) return { lift, first: null, latest: null, prev: null, best: null, sessions: 0 };
+    const first = obs[0].v;
+    const latest = obs[obs.length - 1].v;
+    const prev = obs.length > 1 ? obs[obs.length - 2].v : null;
+    const best = Math.max(...obs.map((o) => o.v));
+    return { lift, first, latest, prev, best, sessions: obs.length };
+  });
+
+  // Linear trend (lb/week) over weeks that had training.
+  const pts = rows.map((r, i) => ({ x: i, y: r.tonnage })).filter((p) => p.y > 0);
+  const n = pts.length;
+  const sx = pts.reduce((a, p) => a + p.x, 0), sy = pts.reduce((a, p) => a + p.y, 0);
+  const sxx = pts.reduce((a, p) => a + p.x * p.x, 0), sxy = pts.reduce((a, p) => a + p.x * p.y, 0);
+  const slope = n > 1 ? (n * sxy - sx * sy) / (n * sxx - sx * sx) : 0;
+
+  const trained = rows.filter((r) => r.tonnage > 0);
+  const peak = rows.reduce((m, r) => (r.tonnage > m.tonnage ? r : m), rows[0]);
+  const cumulative = {
+    grandTonnage: Math.round(grandTon),
+    grandSets,
+    trainingWeeks: trained.length,
+    peakTonnage: peak.tonnage,
+    peakWeek: peak.week,
+    currentTonnage: rows[rows.length - 1].tonnage,
+    slope: Math.round(slope),
+  };
+
+  return { rows, muscleWeekly, liftWeekly, liftSummary, cumulative };
+}
+
+// ---- email-safe chart primitives (inline-block bars; no SVG / no JS) ----
+
+function fmtMonth(ymdStr) {
+  return new Date(ymdStr + "T12:00:00").toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+}
+
+// Full-axis bar chart: one bar per value, zero values rendered as a faint stub.
+function fullBars(values, { height = 120, width = 6, color = "#B8880E", zeroColor = "#E5E7EB" } = {}) {
+  const max = Math.max(...values, 1);
+  const bars = values
+    .map((v) => {
+      const h = v > 0 ? Math.max(2, Math.round((v / max) * (height - 4))) : 1;
+      return `<span class="tbar" style="height:${h}px;width:${width}px;background:${v > 0 ? color : zeroColor};"></span>`;
+    })
+    .join("");
+  return `<div class="bars-wrap"><div class="bars" style="height:${height}px;">${bars}</div></div>`;
+}
+
+// Compact sparkline of only the observed (non-null) values, scaled min→max so
+// the progression shape is visible even on a narrow numeric range.
+function sparkObserved(values, color, { height = 30, width = 4 } = {}) {
+  const vals = values.filter((v) => v != null);
+  if (!vals.length) return "";
+  const max = Math.max(...vals), min = Math.min(...vals);
+  const range = Math.max(1, max - min);
+  const bars = vals
+    .map((v) => {
+      const h = Math.max(3, Math.round(((v - min) / range) * (height - 3)) + 3);
+      return `<span class="sbar" style="height:${h}px;width:${width}px;background:${color};"></span>`;
+    })
+    .join("");
+  return `<span class="spark" style="height:${height}px;">${bars}</span>`;
+}
+
+function sectionMilestones(hist) {
+  const c = hist.cumulative;
+  const pctOfPeak = c.peakTonnage > 0 ? Math.round((c.currentTonnage / c.peakTonnage) * 100) : 0;
+  return `<h2>Career Milestones</h2>
+<div class="stats-grid">
+  <div class="stat"><div class="stat-value gold">${(c.grandTonnage / 1_000_000).toFixed(2)}M</div><div class="stat-label">Lifetime Tonnage (lb)</div></div>
+  <div class="stat"><div class="stat-value">${c.grandSets.toLocaleString()}</div><div class="stat-label">Lifetime Working Sets</div></div>
+  <div class="stat"><div class="stat-value">${c.trainingWeeks}</div><div class="stat-label">Training Weeks</div></div>
+</div>
+<div class="stats-grid">
+  <div class="stat"><div class="stat-value">${c.currentTonnage.toLocaleString()}</div><div class="stat-label">This Week (lb)</div><div class="delta flat">${pctOfPeak}% of peak</div></div>
+  <div class="stat"><div class="stat-value gold">${c.peakTonnage.toLocaleString()}</div><div class="stat-label">Peak Week (lb)</div><div class="delta flat">${fmtMonth(c.peakWeek)}</div></div>
+  <div class="stat"><div class="stat-value">${c.slope >= 0 ? "+" : ""}${c.slope.toLocaleString()}</div><div class="stat-label">Trend (lb/week)</div></div>
+</div>`;
+}
+
+function sectionTonnageTrend(hist) {
+  const { rows, cumulative } = hist;
+  const peakLbl = new Date(cumulative.peakWeek + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return `<h2>Progressive Overload — Weekly Tonnage</h2>
+<div class="card">
+  ${fullBars(rows.map((r) => r.tonnage))}
+  <div class="axis-row"><span>${fmtMonth(rows[0].week)}</span><span>${fmtMonth(rows[rows.length - 1].week)}</span></div>
+  <p class="trend-caption">Each bar = one week's total lbs lifted (strength sessions, working sets). Linear trend: <strong>${cumulative.slope >= 0 ? "+" : ""}${cumulative.slope.toLocaleString()} lb/week</strong> &nbsp;·&nbsp; peak week <strong>${cumulative.peakTonnage.toLocaleString()} lb</strong> (${peakLbl}). Gray stubs = rest / deload weeks.</p>
+</div>`;
+}
+
+function sectionMuscleTrend(hist) {
+  const order = Object.keys(hist.muscleWeekly)
+    .map((m) => ({ m, series: hist.muscleWeekly[m], total: hist.muscleWeekly[m].reduce((a, b) => a + b, 0) }))
+    .sort((a, b) => b.total - a.total);
+  const rows = order
+    .map(({ m, series }) => {
+      const latest = series[series.length - 1];
+      return `<div class="mtrend-row">
+  <div class="muscle-name">${m}</div>
+  <div>${fullBars(series, { height: 34, width: 4, color: "#B8880E" })}</div>
+  <div class="muscle-sets">${latest.toLocaleString()} lb</div>
+</div>`;
+    })
+    .join("\n");
+  return `<h2>Per-Muscle Tonnage Trend</h2>
+<div class="card">
+  ${rows}
+  <p class="trend-caption">Full-history weekly tonnage (lb) per muscle — primary mover only. Right column = this week. Watch for muscles whose bars are trending down (e.g. a dropped lift).</p>
+</div>`;
+}
+
+function sectionLifts(hist) {
+  const rows = hist.liftSummary
+    .filter((l) => l.sessions > 0)
+    .map((l) => {
+      const color = LIFT_GROUPS[l.lift].color;
+      const delta = l.prev != null ? l.latest - l.prev : null;
+      const arrow =
+        delta == null ? `<span class="flat">—</span>`
+        : delta > 0 ? `<span class="up">▲ +${delta}</span>`
+        : delta < 0 ? `<span class="down">▼ ${delta}</span>`
+        : `<span class="flat">—</span>`;
+      const pr = l.latest >= l.best ? ` <span class="best-tag">PR</span>` : "";
+      return `<tr>
+  <td class="lt-name"><span class="lt-dot" style="background:${color};"></span>${l.lift}</td>
+  <td class="lt-spark">${sparkObserved(hist.liftWeekly[l.lift], color)}</td>
+  <td class="lt-num">${l.best.toLocaleString()}</td>
+  <td class="lt-num">${l.latest.toLocaleString()}${pr}</td>
+  <td class="lt-num">${arrow}</td>
+</tr>`;
+    })
+    .join("\n");
+  return `<h2>Big-Lift Strength — Est. 1RM</h2>
+<div class="card">
+  <table class="lift-table">
+    <thead><tr><th>Lift</th><th>Trend</th><th>Best</th><th>Latest</th><th>vs prior</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <p class="trend-caption">Estimated 1RM (Epley: weight × (1 + reps/30), working sets ≤ 12 reps). Sparkline spans your full history of each lift. "Latest" is your most recent logged session for that lift — a deload week reads low. Track direction, not the exact number.</p>
+</div>`;
+}
+
+function buildHtml({ weekRange, dateStr, tw, lw, prsHit, top10, volDelta, repsDelta, volumeScores, muscleHistory, hist }) {
   const deltaClass = (v) => (v > 0 ? "up" : v < 0 ? "down" : "flat");
   const deltaSign = (v) => (v > 0 ? "+" : "");
 
@@ -255,10 +515,14 @@ function buildHtml({ weekRange, dateStr, tw, lw, prsHit, top10, volDelta, repsDe
       const exRows = s.exercises
         .map((e) => `<div class="exercise-row"><span class="ex-name">${e.name}</span><span class="ex-sets">${e.sets}</span></div>`)
         .join("");
-      return `<div class="card">
+      const skippedBadge = s.completed ? "" : ` <span class="category-badge skipped">Skipped</span>`;
+      const meta = s.completed
+        ? `${s.sets} sets · ${s.reps} reps · ${s.volume.toLocaleString()} lb`
+        : `Planned — not logged (no completed sets / session not started)`;
+      return `<div class="card${s.completed ? "" : " card-skipped"}">
   <div class="session-header"><span class="session-title">${s.title}</span><span class="session-date">${dayStr}</span></div>
-  <div class="session-meta"><span class="category-badge ${catClass}">${s.category}</span> &nbsp; ${s.sets} sets · ${s.reps} reps · ${s.volume.toLocaleString()} lb</div>
-  ${exRows}
+  <div class="session-meta"><span class="category-badge ${catClass}">${s.category}</span>${skippedBadge} &nbsp; ${meta}</div>
+  ${s.completed ? exRows : ""}
 </div>`;
     })
     .join("\n");
@@ -310,6 +574,8 @@ function buildHtml({ weekRange, dateStr, tw, lw, prsHit, top10, volDelta, repsDe
   .category-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; text-transform: capitalize; }
   .category-badge.strength { background: rgba(184,136,14,0.14); color: #8A6408; }
   .category-badge.cardio { background: rgba(21,128,61,0.14); color: #166534; }
+  .category-badge.skipped { background: rgba(185,28,28,0.12); color: #B91C1C; }
+  .card-skipped { opacity: 0.65; border-style: dashed; }
   .score-overall { display: flex; align-items: baseline; gap: 8px; margin-bottom: 14px; }
   .score-big { font-size: 36px; font-weight: 800; line-height: 1; }
   .score-of { font-size: 14px; color: #6B7280; font-weight: 600; }
@@ -338,6 +604,29 @@ function buildHtml({ weekRange, dateStr, tw, lw, prsHit, top10, volDelta, repsDe
   .hist-mrv { font-size: 10px; color: #9CA3AF; font-weight: 400; text-transform: none; letter-spacing: 0; margin-top: 2px; }
   .hist-sets { font-size: 14px; font-weight: 700; }
   .hist-tonnage { font-size: 10px; color: #6B7280; margin-top: 2px; }
+  .bars-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .bars { font-size: 0; white-space: nowrap; border-bottom: 2px solid #E5E7EB; padding-top: 4px; }
+  .tbar { display: inline-block; vertical-align: bottom; margin-right: 1px; border-radius: 1px 1px 0 0; }
+  .axis-row { display: flex; justify-content: space-between; font-size: 10px; color: #9CA3AF; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .trend-caption { font-size: 11px; color: #9CA3AF; margin-top: 12px; line-height: 1.5; }
+  .trend-caption strong { color: #6B7280; }
+  .spark { font-size: 0; white-space: nowrap; display: inline-block; }
+  .sbar { display: inline-block; vertical-align: bottom; margin-right: 1px; border-radius: 1px; }
+  .mtrend-row { display: grid; grid-template-columns: 84px 1fr 72px; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid #F0F0F2; }
+  .mtrend-row:last-of-type { border-bottom: none; }
+  .lift-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .lift-table th { text-align: right; color: #6B7280; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 6px 8px; border-bottom: 1px solid #E5E7EB; }
+  .lift-table th:first-child, .lift-table th:nth-child(2) { text-align: left; }
+  .lift-table td { padding: 9px 8px; border-bottom: 1px solid #F0F0F2; text-align: right; font-variant-numeric: tabular-nums; }
+  .lift-table tr:last-child td { border-bottom: none; }
+  .lt-name { text-align: left !important; font-weight: 600; color: #111827; }
+  .lt-dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 7px; vertical-align: middle; }
+  .lt-spark { text-align: left !important; }
+  .lt-num { color: #374151; }
+  .best-tag { display: inline-block; background: rgba(184,136,14,0.16); color: #8A6408; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px; vertical-align: middle; }
+  .up { color: #15803D; font-weight: 600; }
+  .down { color: #B91C1C; font-weight: 600; }
+  .flat { color: #9CA3AF; }
 </style>
 </head>
 <body>
@@ -347,7 +636,7 @@ function buildHtml({ weekRange, dateStr, tw, lw, prsHit, top10, volDelta, repsDe
 
 <h2>Week at a Glance</h2>
 <div class="stats-grid">
-  <div class="stat"><div class="stat-value">${tw.strength + tw.cardio}</div><div class="stat-label">Sessions</div><div class="delta flat">${tw.strength} strength · ${tw.cardio} cardio</div></div>
+  <div class="stat"><div class="stat-value">${tw.strength + tw.cardio}</div><div class="stat-label">Sessions Completed</div><div class="delta flat">${tw.strength} strength · ${tw.cardio} cardio${tw.skipped ? ` · <span style="color:#B91C1C">${tw.skipped} skipped</span>` : ""}</div></div>
   <div class="stat"><div class="stat-value">${tw.totalSets}</div><div class="stat-label">Working Sets</div></div>
   <div class="stat"><div class="stat-value">${tw.totalReps}</div><div class="stat-label">Total Reps</div><div class="delta ${deltaClass(repsDelta)}">${deltaSign(repsDelta)}${repsDelta.toFixed(1)}% vs last week</div></div>
 </div>
@@ -357,12 +646,17 @@ function buildHtml({ weekRange, dateStr, tw, lw, prsHit, top10, volDelta, repsDe
   <div class="stat"><div class="stat-value">—</div><div class="stat-label">Session Time</div><div class="delta flat">use timer to track</div></div>
 </div>
 
+${hist ? sectionMilestones(hist) : ""}
+
+${hist ? sectionTonnageTrend(hist) : ""}
+
 <h2>Week-over-Week</h2>
 <div class="card">
   <table class="comparison-table">
     <thead><tr><th>Metric</th><th>Last Week</th><th>This Week</th><th>Delta</th></tr></thead>
     <tbody>
       <tr><td>Strength Sessions</td><td>${lw.strength}</td><td>${tw.strength}</td><td><span class="delta ${deltaClass(tw.strength - lw.strength)}">${tw.strength === lw.strength ? "—" : deltaSign(tw.strength - lw.strength) + (tw.strength - lw.strength)}</span></td></tr>
+      <tr><td>Skipped / Not Logged</td><td>${lw.skipped ?? 0}</td><td>${tw.skipped ?? 0}</td><td><span class="delta ${deltaClass(-((tw.skipped ?? 0) - (lw.skipped ?? 0)))}">${(tw.skipped ?? 0) === (lw.skipped ?? 0) ? "—" : deltaSign((tw.skipped ?? 0) - (lw.skipped ?? 0)) + ((tw.skipped ?? 0) - (lw.skipped ?? 0))}</span></td></tr>
       <tr><td>Working Sets</td><td>${lw.totalSets}</td><td>${tw.totalSets}</td><td><span class="delta ${deltaClass(tw.totalSets - lw.totalSets)}">${deltaSign(tw.totalSets - lw.totalSets)}${tw.totalSets - lw.totalSets}</span></td></tr>
       <tr><td>Total Reps</td><td>${lw.totalReps}</td><td>${tw.totalReps}</td><td><span class="delta ${deltaClass(repsDelta)}">${deltaSign(repsDelta)}${repsDelta.toFixed(1)}%</span></td></tr>
       <tr><td>Volume (lb)</td><td>${lw.totalVol.toLocaleString()}</td><td>${tw.totalVol.toLocaleString()}</td><td><span class="delta ${deltaClass(volDelta)}">${deltaSign(volDelta)}${volDelta.toFixed(1)}%</span></td></tr>
@@ -466,6 +760,10 @@ ${(() => {
 </div>` ;
 })()}
 
+${hist ? sectionMuscleTrend(hist) : ""}
+
+${hist ? sectionLifts(hist) : ""}
+
 ${prsHit.length > 0 ? `<h2>PRs Hit This Week</h2>
 <div class="card"><div class="pr-list">
 ${prsHit.map((p) => `  <span class="pr-badge">🏆 ${p.name} — ${p.weight} ${p.unit} ×${p.reps}</span>`).join("\n")}
@@ -509,11 +807,14 @@ async function main() {
   // endpoint already does the right per-muscle attribution, so we just fan
   // out and merge — keeps the script as a thin reporter, not a calculator.
   const historyMondays = [3, 2, 1, 0].map((i) => addDays(thisMon, -7 * i));
-  const [thisWeek, lastWeek, prs, exercises, ...volumeWeeks] = await Promise.all([
+  const [thisWeek, lastWeek, prs, exercises, allSessions, ...volumeWeeks] = await Promise.all([
     get(`/sessions?from=${ymd(thisMon)}&to=${ymd(thisSun)}`),
     get(`/sessions?from=${ymd(lastMon)}&to=${ymd(lastSun)}`),
     get(`/exercises/prs`),
     get(`/exercises`),
+    // Full history powers the longitudinal progress sections (tonnage trend,
+    // per-muscle trend, e1RM tracker, career milestones).
+    get(`/sessions?from=2024-01-01&to=${ymd(thisSun)}`),
     ...historyMondays.map((m) => get(`/volume?week=${ymd(m)}`)),
   ]);
   const volume = volumeWeeks[volumeWeeks.length - 1]; // current week
@@ -522,6 +823,8 @@ async function main() {
   const lastWeekArr = Array.isArray(lastWeek) ? lastWeek : [];
   const prsObj = prs && typeof prs === "object" && !Array.isArray(prs) ? prs : {};
   const exArr = Array.isArray(exercises) ? exercises : [];
+  const allSessionsArr = Array.isArray(allSessions) ? allSessions : [];
+  const hist = computeHistory(allSessionsArr);
 
   const tw = weekStats(thisWeekArr);
   const lw = weekStats(lastWeekArr);
@@ -564,7 +867,7 @@ async function main() {
   // order), columns are the four weeks. Cells show sets and tonnage.
   const muscleHistory = buildMuscleHistory(historyMondays, volumeWeeks);
 
-  const html = buildHtml({ weekRange, dateStr, tw, lw, prsHit, top10, volDelta, repsDelta, volumeScores, muscleHistory });
+  const html = buildHtml({ weekRange, dateStr, tw, lw, prsHit, top10, volDelta, repsDelta, volumeScores, muscleHistory, hist });
   const filename = `week-${dateStr}.html`;
 
   const repoPath = join(REPO_DIR, "weekly-report", filename);
@@ -576,6 +879,13 @@ async function main() {
   console.log(`Wrote ${repoPath}`);
   console.log(`Wrote ${desktopPath}`);
   console.log(`Sessions this week: ${tw.strength + tw.cardio} · Volume: ${tw.totalVol.toLocaleString()} lb · PRs: ${prsHit.length}`);
+
+  // Dry-run guard: write the HTML but don't email. Set REPORT_NO_EMAIL=1 (or
+  // pass --no-email) to preview report changes without sending.
+  if (process.env.REPORT_NO_EMAIL === "1" || process.argv.includes("--no-email")) {
+    console.log("REPORT_NO_EMAIL set — wrote files, skipping email.");
+    return;
+  }
 
   if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
     console.log("GMAIL_USER/GMAIL_APP_PASSWORD not set — skipping email.");
