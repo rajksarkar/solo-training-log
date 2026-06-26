@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
+const EPLEY_REP_CAP = 12; // Epley breaks down past ~12 reps; cap for safety.
+
 export async function GET(request: Request) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -51,10 +53,11 @@ export async function GET(request: Request) {
     },
   });
 
-  // Build PR map: exerciseId -> { repMaxes: {reps: maxWeight}, bestSet: {weight, reps, unit} }
+  // Build PR map: exerciseId -> { repMaxes: {reps: maxWeight}, bestSet, bestE1RM }
   const prMap: Record<string, {
     repMaxes: Record<number, { weight: number; unit: string }>;
     bestSet: { weight: number; reps: number; unit: string } | null;
+    bestE1RM: number | null;
   }> = {};
 
   for (const log of setLogs) {
@@ -64,7 +67,7 @@ export async function GET(request: Request) {
     const unit = log.unit;
 
     if (!prMap[exId]) {
-      prMap[exId] = { repMaxes: {}, bestSet: null };
+      prMap[exId] = { repMaxes: {}, bestSet: null, bestE1RM: null };
     }
 
     const entry = prMap[exId];
@@ -77,6 +80,14 @@ export async function GET(request: Request) {
     // Track overall best set (heaviest weight with its reps)
     if (!entry.bestSet || weight > entry.bestSet.weight) {
       entry.bestSet = { weight, reps, unit };
+    }
+
+    // Track best estimated 1RM (Epley) — what the PR badge keys off of.
+    if (reps <= EPLEY_REP_CAP) {
+      const e1rm = weight * (1 + reps / 30);
+      if (entry.bestE1RM == null || e1rm > entry.bestE1RM) {
+        entry.bestE1RM = e1rm;
+      }
     }
   }
 

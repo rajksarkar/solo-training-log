@@ -90,6 +90,7 @@ type Exercise = { id: string; name: string; category: string };
 type PRMap = Record<string, {
   repMaxes: Record<number, { weight: number; unit: string }>;
   bestSet: { weight: number; reps: number; unit: string } | null;
+  bestE1RM: number | null;
 }>;
 
 // Parse UTC date string without timezone shift
@@ -275,7 +276,9 @@ function getDefaultRestSeconds(exerciseName: string): number {
   return 120;
 }
 
-// Check if a set is a PR (personal record)
+// A set is a PR only when it sets a new best estimated 1RM (Epley).
+// Heavier-at-this-rep-count alone is not enough — it must beat the all-time e1RM.
+const EPLEY_REP_CAP = 12; // Epley breaks down past ~12 reps.
 function isPR(
   exerciseId: string,
   reps: number | null,
@@ -283,11 +286,11 @@ function isPR(
   prMap: PRMap
 ): boolean {
   if (!reps || !weight || weight <= 0) return false;
-  const exercisePRs = prMap[exerciseId];
-  if (!exercisePRs) return true; // No history = first time = PR
-  const currentBest = exercisePRs.repMaxes[reps];
-  if (!currentBest) return true; // No history at this rep count = PR
-  return weight > currentBest.weight;
+  if (reps > EPLEY_REP_CAP) return false; // Epley invalid past ~12 reps.
+  const e1rm = weight * (1 + reps / 30);
+  const bestE1RM = prMap[exerciseId]?.bestE1RM;
+  if (bestE1RM == null) return true; // No prior e1RM history = first time = PR
+  return e1rm > bestE1RM;
 }
 
 export default function SessionLogPage() {
